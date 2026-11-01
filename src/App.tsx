@@ -45,22 +45,13 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut,
-  User
-} from 'firebase/auth';
-import firebaseConfig from '../firebase-applet-config.json';
+import { createClient, User } from '@supabase/supabase-js';
 
-// Firebase hanya untuk login Google. Semua data (log SEO) disimpan di Supabase,
-// diakses lewat API server yang memegang kunci Supabase (lebih aman).
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+// Supabase: login Google + identitas. Token login dibawa ke API server saat request.
+const supabase = createClient(
+  ((import.meta as any).env?.VITE_SUPABASE_URL as string) || 'https://placeholder.supabase.co',
+  ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || 'placeholder'
+);
 
 // Types
 interface GSCRow {
@@ -138,8 +129,9 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
 
   const getAuthHeaders = async () => {
-    if (!auth.currentUser) return {};
-    const token = await auth.currentUser.getIdToken();
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return {};
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -147,10 +139,15 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    // state login awal
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user as User | null);
     });
-    return () => unsubscribe();
+    // dengarkan perubahan login; refresh token ditangani supabase-js sendiri
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser((session?.user as User | null) ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -168,8 +165,8 @@ export default function App() {
   const loadLogs = async () => {
     if (!user) return;
     try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/logs', { headers: { 'Authorization': `Bearer ${token}` } });
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/logs', { headers });
       if (!res.ok) {
         console.error('Gagal memuat log:', res.status);
         return;
@@ -186,8 +183,13 @@ export default function App() {
     setIsLoggingIn(true);
     setError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
-      console.log("Login successful");
+      // Supabase Auth: popup Google -> redirect balik -> sesi tersimpan di browser
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) throw error;
+      console.log("OAuth started");
     } catch (err: any) {
       console.error("Login Error:", err);
       setError("Failed to login with Google: " + (err.message || "Unknown error"));
@@ -199,7 +201,7 @@ export default function App() {
   const handleLogout = async () => {
     try {
       const headers = await getAuthHeaders();
-      await signOut(auth);
+      await supabase.auth.signOut();   // tutup sesi lokal
       await fetch('/api/auth/logout', { 
         method: 'POST',
         headers
@@ -216,9 +218,9 @@ export default function App() {
 
   const testConnection = async () => {
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
-      const res = await fetch('/api/logs', { headers: { 'Authorization': `Bearer ${token}` } });
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) return;
+      const res = await fetch('/api/logs', { headers });
       if (!res.ok) console.error('Koneksi API log bermasalah:', res.status);
     } catch (error) {
       console.error('API unreachable:', error);
@@ -2037,10 +2039,10 @@ export default function App() {
     };
 
     try {
-      const token = await user.getIdToken();
+      const headers = await getAuthHeaders();
       const res = await fetch('/api/logs', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(newLog)
       });
       if (!res.ok) {
@@ -2058,10 +2060,10 @@ export default function App() {
   const handleDeleteLog = async (id: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus log ini?")) return;
     try {
-      const token = await user?.getIdToken();
+      const headers = await getAuthHeaders();
       const res = await fetch(`/api/logs/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
@@ -2238,7 +2240,7 @@ export default function App() {
               <div className="h-8 w-px bg-gray-200 mx-2" />
               <div className="flex items-center gap-3">
                 <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold text-gray-900">{user?.displayName}</span>
+                  <span className="text-xs font-bold text-gray-900">{(user?.user_metadata as any)?.full_name || user?.email || 'Pengguna'}</span>
                   <span className="text-[10px] text-gray-400">{user?.email}</span>
                 </div>
                 <button 

@@ -4,7 +4,6 @@ import { google } from "googleapis";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import admin from "firebase-admin";
 import fs from "fs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
@@ -13,43 +12,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Firebase Admin (untuk verifikasi token login Google)
-let firebaseApp: admin.app.App;
-
-if (!admin.apps.length) {
-  let projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
-
-  if (!projectId) {
-    try {
-      const configPath = path.join(__dirname, "firebase-applet-config.json");
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        projectId = config.projectId;
-      }
-    } catch (e) {}
-  }
-
-  const appOptions: admin.AppOptions = {
-    projectId: projectId || "razeo-app"
-  };
-
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (serviceAccount) {
-    try {
-      appOptions.credential = admin.credential.cert(JSON.parse(serviceAccount));
-      console.log("Using provided FIREBASE_SERVICE_ACCOUNT credentials");
-    } catch (e) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
-    }
-  }
-
-  console.log(`Initializing Firebase Admin for project: ${appOptions.projectId}`);
-  firebaseApp = admin.initializeApp(appOptions);
-} else {
-  firebaseApp = admin.app();
-}
-
-// Supabase (database utama Razeo) — pakai SERVICE ROLE key, hanya di server.
+// Supabase (database + auth Google) — key hanya di server.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -79,7 +42,7 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Middleware to verify Firebase ID Token
+// Middleware: verifikasi token login (Supabase JWT) via header Authorization
 const authenticate = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -87,8 +50,15 @@ const authenticate = async (req: any, res: any, next: any) => {
   }
   const idToken = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken;
+    const { data, error } = await supabase.auth.getUser(idToken);
+    if (error || !data.user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    req.user = {
+      uid: data.user.id,                    // supabase uid dipakai di seluruh API
+      email: data.user.email,
+      user_metadata: data.user.user_metadata,
+    };
     next();
   } catch (error) {
     res.status(401).json({ error: "Invalid token" });
