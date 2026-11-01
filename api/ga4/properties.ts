@@ -1,8 +1,8 @@
 // GET /api/ga4/properties — daftar property GA4 milik user
 import { google } from "googleapis";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../_lib";
-import { getClientForUser } from "../_google";
+import { requireUser } from "razeo-shared";
+import { getClientForUser } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);

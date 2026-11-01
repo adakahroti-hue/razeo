@@ -27,7 +27,8 @@
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.5.0",
     "vite": "^6.2.0",
-    "@supabase/supabase-js": "^2.49.1"
+    "@supabase/supabase-js": "^2.49.1",
+    "razeo-shared": "file:./shared"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

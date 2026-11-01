@@ -1,7 +1,7 @@
 // GET /api/auth/callback — menerima hasil otorisasi Google, simpan token ke user_tokens
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { supabase } from "../_lib";
-import { newOAuth2Client, getRedirectUri } from "../_google";
+import { supabase } from "razeo-shared";
+import { newOAuth2Client, getRedirectUri } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { code, state: uid } = req.query;

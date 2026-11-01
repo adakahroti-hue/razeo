@@ -1,7 +1,7 @@
 // GET /api/auth/url — bikin link otorisasi Google untuk Search Console & GA4
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../_lib";
-import { newOAuth2Client, getRedirectUri, GOOGLE_SCOPES } from "../_google";
+import { requireUser } from "razeo-shared";
+import { newOAuth2Client, getRedirectUri, GOOGLE_SCOPES } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);

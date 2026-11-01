@@ -1,6 +1,6 @@
 // DELETE /api/logs/:id — hapus log (hanya milik sendiri)
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { supabase, requireUser } from "../_lib";
+import { supabase, requireUser } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);
