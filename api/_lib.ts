@@ -17,15 +17,13 @@ export const supabase: SupabaseClient = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
-// Verifikasi koneksi saat cold start
-void supabase
-  .from("logs")
-  .select("id")
-  .limit(1)
+// Verifikasi koneksi saat cold start — selalu ditangkap, tidak pernah unhandled rejection
+Promise.resolve(supabase.from("logs").select("id").limit(1))
   .then(({ error }) => {
     if (error) console.error("Supabase connection check failed:", error.message);
     else console.log("Supabase connection verified successfully");
-  });
+  })
+  .catch((e) => console.error("Supabase connection check crashed:", e?.message || e));
 
 export interface AuthedUser {
   uid: string;
