@@ -127,25 +127,110 @@ export default function App() {
   const [expandedCtaPage, setExpandedCtaPage] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [projects, setProjects] = useState<Array<{id:string;name:string;role:string}>>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    () => localStorage.getItem('razeo_project')
+  );
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const getAuthHeaders = async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) return {};
-    return {
+    const h: Record<string, string> = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
+    // scope per-project: semua endpoint paham X-Project-Id
+    const pid = activeProjectId ?? localStorage.getItem('razeo_project');
+    if (pid) h['X-Project-Id'] = pid;
+    return h;
   };
+
+  const loadProjects = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      if (!('Authorization' in headers)) return;
+      const res = await fetch('/api/projects', { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = data.projects || [];
+      setProjects(list);
+      if (list.length > 0) {
+        const saved = localStorage.getItem('razeo_project');
+        const ok = list.find((p: any) => p.id === saved);
+        const current = ok ? ok.id : list[0].id;
+        if (current !== saved) {
+          localStorage.setItem('razeo_project', current);
+          setActiveProjectId(current);
+        }
+      }
+    } catch (e) {
+      console.error('loadProjects error:', e);
+    }
+  };
+
+  // Tambah link undangan ke project aktif (hanya owner)
+  const handleOpenInvite = async () => {
+    setShowInvite(true);
+    setInviteLink(null);
+    setInviteBusy(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/projects/invite', { method: 'POST', headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal membuat undangan');
+      setInviteLink(`${window.location.origin}/?invite=${data.invitation.token}`);
+    } catch (e: any) {
+      setInviteLink('ERROR:' + (e.message || 'gagal'));
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  // Auto-tebus link undangan ?invite=TOKEN (setelah login)
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (!token) return;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch('/api/invite/redeem', {
+          method: 'POST', headers,
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          // pindah ke project hasil undangan
+          localStorage.setItem('razeo_project', data.project_id);
+          setActiveProjectId(data.project_id);
+          params.delete('invite');
+          const qs = params.toString();
+          window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+          await loadProjects();
+        } else {
+          console.warn('Redeem gagal:', data.error);
+        }
+      } catch (e) {
+        console.error('Redeem error:', e);
+      }
+    })();
+  }, [user]);
 
   useEffect(() => {
     // state login awal
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user as User | null);
+      if (data.user) loadProjects();
     });
     // dengarkan perubahan login; refresh token ditangani supabase-js sendiri
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser((session?.user as User | null) ?? null);
+      if (session?.user) loadProjects();
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -160,7 +245,7 @@ export default function App() {
     loadLogs();
     const interval = setInterval(loadLogs, 15000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, activeProjectId]);
 
   const loadLogs = async () => {
     if (!user) return;
@@ -2167,6 +2252,30 @@ export default function App() {
                 Pelacak Aksi
               </button>
             </nav>
+
+            {user && projects.length > 0 && (
+              <div className="flex items-center gap-2">
+                <select
+                  value={activeProjectId ?? ''}
+                  onChange={(e) => {
+                    localStorage.setItem('razeo_project', e.target.value);
+                    setActiveProjectId(e.target.value);
+                  }}
+                  className="text-sm font-bold bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5 max-w-[180px] truncate focus:outline-none"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleOpenInvite}
+                  className="px-2.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                  title="Undang anggota ke project"
+                >
+                  Undang
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -3916,6 +4025,44 @@ export default function App() {
     </main>
 
       <footer className="max-w-[1600px] mx-auto p-8 border-t border-gray-200 mt-12 text-center text-gray-400 text-sm font-medium">
+      {showInvite && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setShowInvite(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">Undang ke Project</h3>
+              <button onClick={() => setShowInvite(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">✕</button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Siapa pun yang membuka link ini dan login dengan Google akan menjadi
+              <span className="font-bold text-gray-800"> anggota</span> project ini.
+            </p>
+            {inviteBusy ? (
+              <div className="p-4 text-sm text-gray-400 text-center bg-gray-50 rounded-xl">Membuat link undangan...</div>
+            ) : inviteLink?.startsWith('ERROR:') ? (
+              <div className="p-4 text-sm text-red-600 bg-red-50 rounded-xl">{inviteLink.slice(6)}</div>
+            ) : inviteLink ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs break-all font-mono">{inviteLink}</div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(inviteLink); }}
+                    className="flex-1 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+                  >Salin Link</button>
+                  <button
+                    onClick={handleOpenInvite}
+                    className="py-2.5 px-4 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  >Link Baru</button>
+                </div>
+              </div>
+            ) : null}
+          </motion.div>
+        </div>
+      )}
         <p>© 2026 SEO Content Audit Ultimate. Built with Google Search Console API.</p>
       </footer>
     </div>

@@ -75,6 +75,68 @@ export async function getClientForUser(uid, req) {
   return client;
 }
 
+// ===== Projects & keanggotaan (multi-user) =====
+
+import { randomBytes } from "crypto";
+
+/** Token link undangan acak (aman, 24 byte base64url). */
+export function inviteToken() {
+  return randomBytes(18).toString("base64url");
+}
+
+/**
+ * Pastikan user punya minimal 1 project (auto-bootstrap).
+ * Login pertama = project sendiri; login lagi = pakai project lama.
+ * Return array project di mana user menjadi anggota.
+ */
+export async function listProjects(uid) {
+  const { data, error } = await supabase
+    .from("project_members")
+    .select("project_id, role, projects(id, name, owner_uid, created_at)")
+    .eq("uid", uid);
+  if (error) throw error;
+  const list = (data || []).map((r) => ({
+    id: r.project_id,
+    role: r.role,
+    name: r.projects?.name,
+    owner_uid: r.projects?.owner_uid,
+    created_at: r.projects?.created_at,
+  }));
+  if (list.length > 0) return list;
+
+  // belum ada project → buat milik pribadi
+  const { data: proj, error: e1 } = await supabase
+    .from("projects")
+    .insert({ name: "Project Saya", owner_uid: uid })
+    .select()
+    .single();
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from("project_members")
+    .insert({ project_id: proj.id, uid, role: "owner" });
+  if (e2) throw e2;
+  return [{ id: proj.id, role: "owner", name: proj.name, owner_uid: uid, created_at: proj.created_at }];
+}
+
+/** Apakah user ini anggota project tsb? Return role, atau null jika bukan anggota. */
+export async function isMember(uid, projectId) {
+  if (!projectId) return false;
+  const { data, error } = await supabase
+    .from("project_members")
+    .select("role")
+    .eq("project_id", projectId)
+    .eq("uid", uid)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? data.role : null;
+}
+
+/** Baca header X-Project-Id dari request. */
+export function projectFrom(req) {
+  const v = req.headers?.["x-project-id"];
+  return typeof v === "string" ? v : null;
+}
+
 export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
   "https://www.googleapis.com/auth/analytics.readonly",
