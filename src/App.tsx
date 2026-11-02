@@ -186,7 +186,7 @@ export default function App() {
       // Supabase Auth: popup Google -> redirect balik -> sesi tersimpan di browser
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin }
+        options: { redirectTo: 'https://razeo.vercel.app/' }
       });
       if (error) throw error;
       console.log("OAuth started");
