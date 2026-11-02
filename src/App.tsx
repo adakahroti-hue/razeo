@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, 
   BarChart3, 
@@ -96,6 +96,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   // 'project' = gerbang PILIH/BUAT project setelah login Google
   const [viewState, setViewState] = useState<'login' | 'project' | 'select' | 'dashboard'>('login');
+  // Ref view terkini — dibaca async/callback supaya tidak memakai nilai basi (closure)
+  const viewStateRef = useRef<'login' | 'project' | 'select' | 'dashboard'>('login');
+  viewStateRef.current = viewState;
+  const guardProjectGate = () => viewStateRef.current !== 'project';
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectNameInput, setProjectNameInput] = useState('');
@@ -1135,8 +1139,10 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         setIsConnected(true);
-        setViewState('select');
-        fetchSites();
+        if (guardProjectGate()) {
+          setViewState('select');
+          fetchSites();
+        }
       }
     };
     window.addEventListener('message', handleMessage);
@@ -1150,8 +1156,8 @@ export default function App() {
       const res = await fetch('/api/auth/status', { headers });
       const status = await res.json();
       setIsConnected(status.connected);
-      if (status.connected && viewState !== 'project') {
-        // jangan tabrak gerbang pilih-project saat baru login
+      // hanya pindah ke layar properti kalau TIDAK sedang di gerbang pilih/buat project
+      if (status.connected && guardProjectGate()) {
         setViewState('select');
         fetchSites();
       }
@@ -1165,7 +1171,12 @@ export default function App() {
   useEffect(() => {
     if (user) {
       // habis login Google → gerbang pilih/buat project dulu
-      if (viewState === 'login') setViewState('project');
+      // ref diset sinkron dulu supaya checkAuthStatus (async) tidak sempat
+      // mengira masih di layar login lalu menyeret ke layar properti
+      if (viewStateRef.current === 'login') {
+        viewStateRef.current = 'project';
+        setViewState('project');
+      }
       checkAuthStatus();
     } else {
       setIsLoading(false);
@@ -1176,8 +1187,10 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         setIsConnected(true);
-        setViewState('select');
-        fetchSites();
+        if (guardProjectGate()) {
+          setViewState('select');
+          fetchSites();
+        }
       }
     };
     window.addEventListener('message', handleMessage);
