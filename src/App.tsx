@@ -88,7 +88,6 @@ export default function App() {
   const [ga4Properties, setGa4Properties] = useState<GA4Property[]>([]);
   const [selectedGa4Property, setSelectedGa4Property] = useState<string | null>(null);
   const [ga4Data, setGa4Data] = useState<GA4Row[]>([]);
-  const [isFetchingGa4, setIsFetchingGa4] = useState(false);
   const [data, setData] = useState<GSCRow[]>([]);
   const [summary, setSummary] = useState<GSCRow | null>(null);
   const [timeSeries, setTimeSeries] = useState<GSCRow[]>([]);
@@ -135,7 +134,6 @@ export default function App() {
   const [expandedAiPage, setExpandedAiPage] = useState<string | null>(null);
   const [expandedScrollPage, setExpandedScrollPage] = useState<string | null>(null);
   const [expandedErPage, setExpandedErPage] = useState<string | null>(null);
-  const [expandedCtaPage, setExpandedCtaPage] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [projects, setProjects] = useState<Array<{id:string;name:string;role:string}>>([]);
@@ -364,7 +362,6 @@ export default function App() {
   };
 
   const handleLogin = async () => {
-    console.log("handleLogin clicked");
     setIsLoggingIn(true);
     setError(null);
     try {
@@ -374,7 +371,6 @@ export default function App() {
         options: { redirectTo: 'https://razeo.vercel.app/' }
       });
       if (error) throw error;
-      console.log("OAuth started");
     } catch (err: any) {
       console.error("Login Error:", err);
       setError("Failed to login with Google: " + (err.message || "Unknown error"));
@@ -1123,7 +1119,6 @@ export default function App() {
     setExpandedLhfPage(null);
     setExpandedAiPage(null);
     setExpandedConsolidationQuery(null);
-    setExpandedCtaPage(null);
     setSelectedCtaPages(new Set());
   }, [auditTab]);
 
@@ -1156,6 +1151,10 @@ export default function App() {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch('/api/auth/status', { headers });
+      if (!res.ok) {
+        console.error('Auth check: server balas', res.status);
+        return;
+      }
       const status = await res.json();
       setIsConnected(status.connected);
       // hanya pindah ke layar properti kalau TIDAK sedang di gerbang pilih/buat project
@@ -1184,20 +1183,6 @@ export default function App() {
       setIsLoading(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        setIsConnected(true);
-        if (guardProjectGate()) {
-          setViewState('select');
-          fetchSites();
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
   const fetchSites = async () => {
     try {
@@ -1293,7 +1278,6 @@ export default function App() {
 
       // Fetch GA4 data if property is selected
       if (selectedGa4Property) {
-        setIsFetchingGa4(true);
         try {
           const ga4Res = await fetch(`/api/ga4/data?propertyId=${selectedGa4Property.split('/').pop()}&startDate=${startDate}&endDate=${endDate}`, { headers });
           const ga4Data = await ga4Res.json();
@@ -1305,7 +1289,6 @@ export default function App() {
         } catch (err) {
           console.error('Failed to fetch GA4 data:', err);
         } finally {
-          setIsFetchingGa4(false);
         }
       } else {
         setGa4Data([]);
@@ -1318,7 +1301,6 @@ export default function App() {
   };
 
   const handleConnect = async () => {
-    console.log("handleConnect clicked");
     setIsConnecting(true);
     setError(null);
     try {
@@ -1330,7 +1312,6 @@ export default function App() {
         throw new Error(data.error || 'Failed to get authentication URL. Please check your Google OAuth credentials in the Settings menu.');
       }
       
-      console.log("Opening OAuth popup:", data.url);
       window.open(data.url, 'oauth_popup', 'width=600,height=700');
     } catch (err: any) {
       console.error("Connect Error:", err);
