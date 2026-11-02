@@ -99,6 +99,8 @@ export default function App() {
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectNameInput, setProjectNameInput] = useState('');
+  // Konfirmasi Enter: Enter pertama hanya konfirmasi, Enter kedua baru membuat project
+  const [createConfirm, setCreateConfirm] = useState(false);
   const [projectWorking, setProjectWorking] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -231,6 +233,7 @@ export default function App() {
       await enterProject(d.id, d.name, 'owner');
     } catch (e: any) {
       setError(e.message || 'Gagal membuat project');
+      setCreateConfirm(false);
     } finally {
       setProjectWorking(false);
     }
@@ -1488,19 +1491,33 @@ export default function App() {
             <div className="flex gap-2">
               <input
                 value={projectNameInput}
-                onChange={(e) => setProjectNameInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+                onChange={(e) => { setProjectNameInput(e.target.value); setCreateConfirm(false); }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  if (!projectNameInput.trim() || projectWorking) return;
+                  if (!createConfirm) { setCreateConfirm(true); return; }
+                  handleCreateProject();
+                }}
                 placeholder="Nama project, misal: Toko Budi"
                 className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500"
               />
               <button
                 onClick={handleCreateProject}
                 disabled={projectWorking || !projectNameInput.trim()}
-                className="px-5 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                className={cn(
+                  "px-5 py-3 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                  createConfirm ? "bg-emerald-700 ring-2 ring-emerald-300" : "bg-emerald-600 hover:bg-emerald-700"
+                )}
               >
-                {projectWorking ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Buat'}
+                {projectWorking ? <RefreshCw className="w-4 h-4 animate-spin" /> : createConfirm ? 'Konfirmasi ✓' : 'Buat'}
               </button>
             </div>
+            <p className={cn("text-[11px] pt-1 transition-colors", createConfirm ? "text-emerald-600 font-semibold" : "text-gray-400")}>
+              {createConfirm
+                ? "Tekan Enter lagi / klik 'Konfirmasi' untuk membuat project ini."
+                : "Tekan Enter sekali untuk konfirmasi, baru Enter lagi untuk membuat."}
+            </p>
           </div>
 
           <button
