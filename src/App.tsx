@@ -45,6 +45,9 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
+import LoginScreen from './screens/LoginScreen';
+import ProjectGate from './screens/ProjectGate';
+import PropertyScreen from './screens/PropertyScreen';
 import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase: login Google + identitas. Token login dibawa ke API server saat request.
@@ -1338,354 +1341,62 @@ export default function App() {
 
   if (viewState === 'login') {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
-        {error && (
-          <div className="max-w-md w-full mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-600 text-sm shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Error</p>
-              <p className="opacity-90">{error}</p>
-            </div>
-            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-lg transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl w-full text-center space-y-8"
-        >
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-emerald-600/10 border border-emerald-600/20 mb-4">
-            <Search className="w-10 h-10 text-emerald-600" />
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-gradient-to-b from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            SEO Content Audit Ultimate
-          </h1>
-          <p className="text-xl text-gray-600 max-w-lg mx-auto leading-relaxed">
-            Connect your Google Search Console to unlock deep insights, visualize performance, and audit your content like a pro.
-          </p>
-          
-          <div className="pt-8">
-            {!user ? (
-              <button 
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-                className="group relative px-8 py-4 bg-emerald-600 text-white font-semibold rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-600/20 disabled:opacity-50 disabled:scale-100"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  {isLoggingIn ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Logging in...
-                    </>
-                  ) : (
-                    <>
-                      Login with Google
-                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </span>
-              </button>
-            ) : (
-              <button 
-                onClick={handleConnect}
-                disabled={isConnecting}
-                className="group relative px-8 py-4 bg-emerald-600 text-white font-semibold rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-600/20 disabled:opacity-50 disabled:scale-100"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  {isConnecting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      Connect Google Search Console
-                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </span>
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16 text-left">
-            {[
-              { icon: BarChart3, title: "Visual Analytics", desc: "Interactive charts for clicks, impressions, and CTR.", color: "text-blue-500", bg: "bg-blue-50" },
-              { icon: Target, title: "Opportunity Finder", desc: "Identify high-impression, low-CTR pages to optimize.", color: "text-rose-500", bg: "bg-rose-50" },
-              { icon: Globe, title: "Global Reach", desc: "Analyze performance by country and device type.", color: "text-emerald-500", bg: "bg-emerald-50" }
-            ].map((feature, i) => (
-              <div key={i} className="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-4", feature.bg)}>
-                  <feature.icon className={cn("w-6 h-6", feature.color)} />
-                </div>
-                <h3 className="font-semibold mb-2 text-gray-900">{feature.title}</h3>
-                <p className="text-sm text-gray-500">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
+      <LoginScreen
+        error={error}
+        setError={setError}
+        user={user}
+        handleLogin={handleLogin}
+        isLoggingIn={isLoggingIn}
+        handleConnect={handleConnect}
+        isConnecting={isConnecting}
+      />
     );
   }
 
-  // ============================================================
-  // GERBANG PROJECT — tampil setelah login Google sebelum masuk dashboard
-  // ============================================================
+  // Gerbang project — pilih/buat project sebelum masuk dashboard
   if (viewState === 'project') {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
-        {error && (
-          <div className="max-w-md w-full mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-600 text-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Error</p>
-              <p className="opacity-90">{error}</p>
-            </div>
-            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-lg transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full p-8 rounded-3xl bg-white border border-gray-200 shadow-2xl space-y-6"
-        >
-          <div className="text-center">
-            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h2 className="text-2xl font-bold">Pilih Project</h2>
-            <p className="text-gray-500 text-sm mt-2">
-              Setiap project punya data GSC/GA4 sendiri. Mau masuk yang mana?
-            </p>
-          </div>
-
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
-            {projects.length > 0 ? projects.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => enterProject(p.id, p.name, p.role)}
-                className={cn(
-                  "w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between group",
-                  activeProjectId === p.id
-                    ? "bg-emerald-50 border-emerald-600 text-emerald-700"
-                    : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
-                )}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-600/10 flex items-center justify-center flex-shrink-0">
-                    <Search className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-semibold truncate block">{p.name}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
-                      {p.role === 'owner' ? 'Pemilik' : 'Anggota'}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              </button>
-            )) : (
-              <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                Belum ada project. Buat yang pertama ↓
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-gray-100 pt-5 space-y-3">
-            <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 px-1">
-              Buat Project Baru
-            </label>
-            <div className="flex gap-2">
-              <input
-                value={projectNameInput}
-                onChange={(e) => { setProjectNameInput(e.target.value); setCreateConfirm(false); }}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  if (!projectNameInput.trim() || projectWorking) return;
-                  if (!createConfirm) { setCreateConfirm(true); return; }
-                  handleCreateProject();
-                }}
-                placeholder="Nama project, misal: Toko Budi"
-                className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                onClick={handleCreateProject}
-                disabled={projectWorking || !projectNameInput.trim()}
-                className={cn(
-                  "px-5 py-3 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                  createConfirm ? "bg-emerald-700 ring-2 ring-emerald-300" : "bg-emerald-600 hover:bg-emerald-700"
-                )}
-              >
-                {projectWorking ? <RefreshCw className="w-4 h-4 animate-spin" /> : createConfirm ? 'Konfirmasi ✓' : 'Buat'}
-              </button>
-            </div>
-            <p className={cn("text-[11px] pt-1 transition-colors", createConfirm ? "text-emerald-600 font-semibold" : "text-gray-400")}>
-              {createConfirm
-                ? "Tekan Enter lagi / klik 'Konfirmasi' untuk membuat project ini."
-                : "Tekan Enter sekali untuk konfirmasi, baru Enter lagi untuk membuat."}
-            </p>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition-colors"
-          >
-            Keluar / Ganti Akun
-          </button>
-        </motion.div>
-      </div>
+      <ProjectGate
+        error={error}
+        setError={setError}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        projectNameInput={projectNameInput}
+        setProjectNameInput={setProjectNameInput}
+        createConfirm={createConfirm}
+        setCreateConfirm={setCreateConfirm}
+        projectWorking={projectWorking}
+        handleCreateProject={handleCreateProject}
+        enterProject={enterProject}
+        handleLogout={handleLogout}
+      />
     );
   }
 
   if (viewState === 'select') {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
-        {error && (
-          <div className="max-w-md w-full mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-600 text-sm shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Error</p>
-              <p className="opacity-90">{error}</p>
-            </div>
-            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-lg transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full p-8 rounded-3xl bg-white border border-gray-200 shadow-2xl space-y-6"
-        >
-          <div className="text-center">
-            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Globe className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h2 className="text-2xl font-bold">Property {projects.find(p => p.id === activeProjectId)?.name ? '\u2014 ' + (projects.find(p => p.id === activeProjectId)?.name) : ''}</h2>
-            <p className="text-gray-500 text-sm mt-2">
-              {projectRole === 'owner'
-                ? 'Pilih website (GSC) yang mau dipantau project ini, lalu simpan koneksi.'
-                : 'Project ini sudah diatur oleh pemiliknya. Kamu hanya bisa melihat datanya.'}
-            </p>
-            {projectRole === 'owner' && (
-              <p className="text-[10px] uppercase tracking-widest font-black text-emerald-600 mt-2">
-                ● Kamu pemilik project
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 px-1">Search Console Property</label>
-              {sites.length > 0 ? (
-                sites.map((site) => (
-                  <button
-                    key={site.siteUrl}
-                    onClick={() => setSelectedSite(site.siteUrl)}
-                    className={cn(
-                      "w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between group",
-                      selectedSite === site.siteUrl 
-                        ? "bg-emerald-50 border-emerald-600 text-emerald-700" 
-                        : "bg-white border-gray-200 hover:border-gray-300 text-gray-600"
-                    )}
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium truncate max-w-[240px]">{site.siteUrl}</span>
-                      <span className="text-[10px] uppercase tracking-wider opacity-50">{site.permissionLevel}</span>
-                    </div>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                      selectedSite === site.siteUrl ? "border-emerald-600 bg-emerald-600" : "border-gray-300"
-                    )}>
-                      {selectedSite === site.siteUrl && <div className="w-2 h-2 bg-white rounded-full" />}
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-center py-4 text-gray-400 text-sm space-y-1">
-                  {isConnected
-                    ? <p>Properti Search Console tidak ada. Pastikan websitemu sudah terdaftar di <a className="text-emerald-600 underline" href="https://search.google.com/search-console" target="_blank" rel="noreferrer">Search Console</a>.</p>
-                    : <p>Daftar akan muncul setelah kamu klik <b>"Hubungkan Akun Google Dulu"</b> di bawah.</p>}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 px-1 flex items-center justify-between">
-                <span>Google Analytics 4 (Optional)</span>
-                {ga4Properties.length > 0 && <span className="text-emerald-600 text-[8px] bg-emerald-50 px-1.5 py-0.5 rounded">Connected</span>}
-              </label>
-              {ga4Properties.length > 0 ? (
-                <div className="max-h-48 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                  {ga4Properties.map((prop) => (
-                    <button
-                      key={prop.name}
-                      onClick={() => setSelectedGa4Property(selectedGa4Property === prop.name ? null : prop.name)}
-                      className={cn(
-                        "w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between group text-xs",
-                        selectedGa4Property === prop.name 
-                          ? "bg-emerald-50 border-emerald-600 text-emerald-700" 
-                          : "bg-white border-gray-200 hover:border-gray-300 text-gray-600"
-                      )}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium truncate max-w-[200px]">{prop.displayName}</span>
-                        <span className="text-[8px] uppercase tracking-wider opacity-50">{prop.name.split('/').pop()}</span>
-                      </div>
-                      <div className={cn(
-                        "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
-                        selectedGa4Property === prop.name ? "border-emerald-600 bg-emerald-600" : "border-gray-300"
-                      )}>
-                        {selectedGa4Property === prop.name && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-gray-400 text-xs border border-dashed border-gray-200 rounded-xl">
-                  No GA4 properties found or scope not granted.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {projectRole === 'owner' && (!isConnected || !projectConnection?.gsc_site) && (
-            <button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="w-full py-4 bg-white border-2 border-emerald-600 text-emerald-700 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
-            >
-              {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-              Hubungkan Akun Google Dulu
-            </button>
-          )}
-
-          <button
-            disabled={!selectedSite || projectWorking || isFetchingData}
-            onClick={() => {
-              if (projectRole === 'owner' && selectedSite) handleSaveConnection();
-              else if (selectedSite) fetchData(selectedSite);
-            }}
-            className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-          >
-            {isFetchingData || projectWorking
-              ? <RefreshCw className="w-5 h-5 animate-spin" />
-              : projectRole === 'owner' ? 'Simpan Koneksi & Mulai Audit' : 'Mulai Audit'}
-          </button>
-
-          <button 
-            onClick={handleLogout}
-            className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition-colors"
-          >
-            Switch Account
-          </button>
-        </motion.div>
-      </div>
+      <PropertyScreen
+        error={error}
+        setError={setError}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        projectRole={projectRole}
+        projectConnection={projectConnection}
+        sites={sites}
+        ga4Properties={ga4Properties}
+        selectedSite={selectedSite}
+        setSelectedSite={setSelectedSite}
+        selectedGa4Property={selectedGa4Property}
+        setSelectedGa4Property={setSelectedGa4Property}
+        isConnected={isConnected}
+        projectWorking={projectWorking}
+        isFetchingData={isFetchingData}
+        handleConnect={handleConnect}
+        isConnecting={isConnecting}
+        handleSaveConnection={handleSaveConnection}
+        fetchData={fetchData}
+        handleLogout={handleLogout}
+      />
     );
   }
 
