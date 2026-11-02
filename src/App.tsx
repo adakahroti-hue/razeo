@@ -1209,6 +1209,8 @@ export default function App() {
         setSites([]);
         if (gscRes.status === 401 && String(sitesData?.error || '').includes('Token'))
           setError('Sesi Google perlu dihubungkan ulang — klik "Hubungkan Akun Google Dulu".');
+        else if (gscRes.status === 401 && msg.includes('belum hubungkan'))
+          setError(null); // kondisi normal → petunjuk tombol connect yang mengurus
         else if (gscRes.status === 401 || gscRes.status === 403)
           setError('Belum hubungkan akun Google: ' + msg);
         else
@@ -1225,12 +1227,6 @@ export default function App() {
       const ga4Data = await ga4Res.json();
       if (ga4Res.ok && Array.isArray(ga4Data)) {
         setGa4Properties(ga4Data);
-      } else if (ga4Data?.error) {
-        // tetap tampilkan GSC (sudah terisi), hanya catat alasan GA4 kosong
-        const extra = ga4Data.error.includes('Google Analytics Admin API is not enabled')
-          ? ' (GA4 API belum aktif di Google Cloud)'
-          : '';
-        setError('Info GA4: ' + ga4Data.error + extra);
       }
     } catch (err) {
       setError('Failed to load sites or properties');
