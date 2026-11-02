@@ -94,7 +94,12 @@ export default function App() {
   const [timeSeries, setTimeSeries] = useState<GSCRow[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewState, setViewState] = useState<'login' | 'select' | 'dashboard'>('login');
+  // 'project' = gerbang PILIH/BUAT project setelah login Google
+  const [viewState, setViewState] = useState<'login' | 'project' | 'select' | 'dashboard'>('login');
+  const [projectRole, setProjectRole] = useState<string | null>(null);
+  const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
+  const [projectNameInput, setProjectNameInput] = useState('');
+  const [projectWorking, setProjectWorking] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [compareStartDate, setCompareStartDate] = useState<string>(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -169,6 +174,92 @@ export default function App() {
       }
     } catch (e) {
       console.error('loadProjects error:', e);
+    }
+  };
+
+  // Masuk ke sebuah project: simpan pilihan, muat koneksi, lalu ke 'select'
+  const enterProject = async (pid: string, name: string, role: string) => {
+    localStorage.setItem('razeo_project', pid);
+    setActiveProjectId(pid);
+    setProjectRole(role);
+    setProjectNameInput('');
+    // muat status koneksi GSC/GA4 milik project ini
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({ action: 'connection-get' })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setProjectConnection(d.connection ?? null);
+        setProjectRole(d.role ?? role);
+        // owner tanpa koneksi → ke layar connect; selain itu → pilih properti/audit
+        if (d.role === 'owner' && !d.connection?.gsc_site) {
+          setViewState('select');
+        } else if (d.connection?.gsc_site) {
+          setSelectedSite(d.connection.gsc_site);
+          setSelectedGa4Property(d.connection.ga4_property ?? null);
+          setViewState('select');
+        } else {
+          setViewState('select'); // member tanpa koneksi → tetap select (info)
+        }
+      } else {
+        setViewState('select');
+      }
+    } catch {
+      setViewState('select');
+    }
+    // refresh picker header
+    loadProjects();
+  };
+
+  // Buat project baru dari gerbang
+  const handleCreateProject = async () => {
+    const name = projectNameInput.trim();
+    if (!name) { setError('Nama project wajib diisi'); return; }
+    setProjectWorking(true); setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({ name })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Gagal membuat project');
+      await loadProjects();
+      await enterProject(d.id, d.name, 'owner');
+    } catch (e: any) {
+      setError(e.message || 'Gagal membuat project');
+    } finally {
+      setProjectWorking(false);
+    }
+  };
+
+  // Simpan pilihan GSC + GA4 ke project (hanya owner)
+  const handleSaveConnection = async () => {
+    if (!selectedSite) { setError('Pilih dulu property Search Console'); return; }
+    setProjectWorking(true); setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          action: 'connection-save',
+          gsc_site: selectedSite,
+          ga4_property: selectedGa4Property || null
+        })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Gagal menyimpan koneksi');
+      setProjectConnection(d.connection);
+      setProjectRole('owner');
+      setIsConnected(true);
+      await fetchData(selectedSite);
+    } catch (e: any) {
+      setError(e.message || 'Gagal menyimpan koneksi');
+    } finally {
+      setProjectWorking(false);
     }
   };
 
@@ -1056,7 +1147,8 @@ export default function App() {
       const res = await fetch('/api/auth/status', { headers });
       const status = await res.json();
       setIsConnected(status.connected);
-      if (status.connected) {
+      if (status.connected && viewState !== 'project') {
+        // jangan tabrak gerbang pilih-project saat baru login
         setViewState('select');
         fetchSites();
       }
@@ -1069,6 +1161,8 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
+      // habis login Google → gerbang pilih/buat project dulu
+      if (viewState === 'login') setViewState('project');
       checkAuthStatus();
     } else {
       setIsLoading(false);
@@ -1322,6 +1416,104 @@ export default function App() {
     );
   }
 
+  // ============================================================
+  // GERBANG PROJECT — tampil setelah login Google sebelum masuk dashboard
+  // ============================================================
+  if (viewState === 'project') {
+    return (
+      <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
+        {error && (
+          <div className="max-w-md w-full mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-600 text-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">Error</p>
+              <p className="opacity-90">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-lg transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full p-8 rounded-3xl bg-white border border-gray-200 shadow-2xl space-y-6"
+        >
+          <div className="text-center">
+            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <BarChart3 className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-bold">Pilih Project</h2>
+            <p className="text-gray-500 text-sm mt-2">
+              Setiap project punya data GSC/GA4 sendiri. Mau masuk yang mana?
+            </p>
+          </div>
+
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+            {projects.length > 0 ? projects.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => enterProject(p.id, p.name, p.role)}
+                className={cn(
+                  "w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between group",
+                  activeProjectId === p.id
+                    ? "bg-emerald-50 border-emerald-600 text-emerald-700"
+                    : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600/10 flex items-center justify-center flex-shrink-0">
+                    <Search className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-semibold truncate block">{p.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                      {p.role === 'owner' ? 'Pemilik' : 'Anggota'}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              </button>
+            )) : (
+              <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                Belum ada project. Buat yang pertama ↓
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-gray-100 pt-5 space-y-3">
+            <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 px-1">
+              Buat Project Baru
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={projectNameInput}
+                onChange={(e) => setProjectNameInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+                placeholder="Nama project, misal: Toko Budi"
+                className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                onClick={handleCreateProject}
+                disabled={projectWorking || !projectNameInput.trim()}
+                className="px-5 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                {projectWorking ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Buat'}
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition-colors"
+          >
+            Keluar / Ganti Akun
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (viewState === 'select') {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
@@ -1346,8 +1538,17 @@ export default function App() {
             <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Globe className="w-8 h-8 text-emerald-600" />
             </div>
-            <h2 className="text-2xl font-bold">Select Property</h2>
-            <p className="text-gray-500 text-sm mt-2">Choose the website you want to audit from your Search Console.</p>
+            <h2 className="text-2xl font-bold">Property {projects.find(p => p.id === activeProjectId)?.name ? '\u2014 ' + (projects.find(p => p.id === activeProjectId)?.name) : ''}</h2>
+            <p className="text-gray-500 text-sm mt-2">
+              {projectRole === 'owner'
+                ? 'Pilih website (GSC) yang mau dipantau project ini, lalu simpan koneksi.'
+                : 'Project ini sudah diatur oleh pemiliknya. Kamu hanya bisa melihat datanya.'}
+            </p>
+            {projectRole === 'owner' && (
+              <p className="text-[10px] uppercase tracking-widest font-black text-emerald-600 mt-2">
+                ● Kamu pemilik project
+              </p>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -1423,12 +1624,28 @@ export default function App() {
             </div>
           </div>
 
+          {projectRole === 'owner' && !isConnected && (
+            <button
+              onClick={handleConnect}
+              disabled={isConnecting}
+              className="w-full py-4 bg-white border-2 border-emerald-600 text-emerald-700 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+              Hubungkan Akun Google Dulu
+            </button>
+          )}
+
           <button
-            disabled={!selectedSite || isFetchingData}
-            onClick={() => selectedSite && fetchData(selectedSite)}
+            disabled={!selectedSite || projectWorking || isFetchingData}
+            onClick={() => {
+              if (projectRole === 'owner' && selectedSite) handleSaveConnection();
+              else if (selectedSite) fetchData(selectedSite);
+            }}
             className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
           >
-            {isFetchingData ? <RefreshCw className="w-5 h-5 animate-spin" /> : "Start Audit"}
+            {isFetchingData || projectWorking
+              ? <RefreshCw className="w-5 h-5 animate-spin" />
+              : projectRole === 'owner' ? 'Simpan Koneksi & Mulai Audit' : 'Mulai Audit'}
           </button>
 
           <button 
@@ -2258,8 +2475,12 @@ export default function App() {
                 <select
                   value={activeProjectId ?? ''}
                   onChange={(e) => {
-                    localStorage.setItem('razeo_project', e.target.value);
-                    setActiveProjectId(e.target.value);
+                    const pid = e.target.value;
+                    const chosen = projects.find((p) => p.id === pid);
+                    localStorage.setItem('razeo_project', pid);
+                    setActiveProjectId(pid);
+                    // muat koneksi project terpilih (role + GSC/GA4) lalu tampilkan
+                    if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
                   }}
                   className="text-sm font-bold bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5 max-w-[180px] truncate focus:outline-none"
                 >

@@ -4,7 +4,7 @@
 // POST { action:"invite" }           → buat link undangan utk project (header X-Project-Id)
 // POST { action:"redeem", token }    → masuk project lewat link undangan
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { supabase, requireUser, listProjects, isMember, projectFrom, inviteToken } from "razeo-shared";
+import { supabase, requireUser, listProjects, isMember, projectFrom, inviteToken, requireProject } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);
@@ -70,6 +70,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .single();
         if (error) throw error;
         return res.status(201).json({ invitation: data });
+      }
+
+      // --- info project aktif + koneksi GSC/GA4 (siapa pun anggota boleh baca) ---
+      if (action === "connection-get") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        return res.status(200).json({
+          project: info.project,
+          role: info.role,
+          connection: info.connection,
+        });
+      }
+
+      // --- simpan/connect properti GSC & GA4 (HANYA pemilik project) ---
+      if (action === "connection-save") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        if (info.role !== "owner") {
+          return res.status(403).json({ error: "Hanya pemilik project yang boleh connect data" });
+        }
+        const gsc = body.gsc_site === undefined ? undefined : (body.gsc_site ? String(body.gsc_site).slice(0, 2048) : null);
+        const ga4 = body.ga4_property === undefined ? undefined : (body.ga4_property ? String(body.ga4_property).slice(0, 128) : null);
+        const patch: any = { owner_uid: user.uid, updated_at: new Date().toISOString() };
+        if (gsc !== undefined) patch.gsc_site = gsc;
+        if (ga4 !== undefined) patch.ga4_property = ga4;
+        if (gsc !== null || ga4 !== null) patch.connected_at = new Date().toISOString();
+        const { data, error } = await supabase
+          .from("project_connections")
+          .upsert({ project_id: info.projectId, ...patch }, { onConflict: "project_id" })
+          .select()
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ connection: data });
       }
 
       // --- buat project baru ---

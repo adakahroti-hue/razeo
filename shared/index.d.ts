@@ -24,5 +24,13 @@ export declare function getClientForUser(uid: string, req: any): Promise<OAuth2C
 export declare function inviteToken(): string;
 export declare function listProjects(uid: string): Promise<ProjectInfo[]>;
 export declare function isMember(uid: string, projectId: string | null): Promise<string | null>;
+export interface ProjectInfo2 {
+  projectId: string;
+  role: string;
+  project: { id: string; name: string; owner_uid?: string; created_at?: string } | null;
+  connection: { project_id: string; owner_uid: string; gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null;
+}
+export declare function requireProject(uid: string, req: any): Promise<ProjectInfo2 | null>;
+export declare function getClientForProject(projectId: string, req: any): Promise<OAuth2Client | null>;
 export declare function projectFrom(req: any): string | null;
 export declare const GOOGLE_SCOPES: string[];

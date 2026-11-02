@@ -137,6 +137,70 @@ export function projectFrom(req) {
   return typeof v === "string" ? v : null;
 }
 
+/**
+ * Info project milik user: { project, role, connection }.
+ * - project: objek project aktif (header X-Project-Id atau default: satu-satunya)
+ * - role: 'owner' | 'member' | null (null = bukan anggota)
+ * - connection: koneksi GSC/GA4 project (atau null)
+ * Return null kalau header project menunjuk project yang bukan miliknya.
+ */
+export async function requireProject(uid, req) {
+  const projectId = projectFrom(req);
+  let q = supabase
+    .from("project_members")
+    .select("project_id, role, projects(id, name, owner_uid, created_at)")
+    .eq("uid", uid);
+  if (projectId) q = q.eq("project_id", projectId);
+  const { data, error } = await q;
+  if (error) throw error;
+  if (!data || data.length === 0) return null; // bukan anggota project tsb
+
+  const row = projectId ? data[0] : data[data.length - 1]; // tanpa header = project pertama
+  const { data: conn, error: e2 } = await supabase
+    .from("project_connections")
+    .select("*")
+    .eq("project_id", row.project_id)
+    .maybeSingle();
+  if (e2) throw e2;
+  return {
+    projectId: row.project_id,
+    role: row.role,
+    project: row.projects || null,
+    connection: conn || null,
+  };
+}
+
+/**
+ * Klien OAuth Google untuk mengambil data sebuah project.
+ * Token diambil dari PEMILIK koneksi project (bukan user yang minta),
+ * sehingga anggota (member) tetap bisa melihat data tanpa connect sendiri.
+ * Return null kalau project belum connect / token rusak.
+ */
+export async function getClientForProject(projectId, req) {
+  const { data: conn, error } = await supabase
+    .from("project_connections")
+    .select("owner_uid, gsc_site, ga4_property")
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (error) {
+    console.error("Failed to read project_connections:", error.message);
+    return null;
+  }
+  if (!conn) return null;
+  const { data: tok, error: e2 } = await supabase
+    .from("user_tokens")
+    .select("tokens")
+    .eq("uid", conn.owner_uid)
+    .maybeSingle();
+  if (e2 || !tok?.tokens) {
+    if (e2) console.error("Failed to read owner tokens:", e2.message);
+    return null;
+  }
+  const client = newOAuth2Client(getRedirectUri(req));
+  client.setCredentials({ ...tok.tokens, redirect_uri: getRedirectUri(req) });
+  return client;
+}
+
 export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
   "https://www.googleapis.com/auth/analytics.readonly",

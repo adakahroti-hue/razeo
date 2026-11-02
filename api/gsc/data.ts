@@ -1,8 +1,7 @@
 // GET /api/gsc/data — ringkasan + deret waktu + detail query/p halaman
 import { google } from "googleapis";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "razeo-shared";
-import { getClientForUser } from "razeo-shared";
+import { requireUser, requireProject, getClientForProject } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);
@@ -17,8 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const client = await getClientForUser(user.uid, req);
-    if (!client) return res.status(401).json({ error: "Not connected" });
+    const info = await requireProject(user.uid, req);
+    if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+    if (!info.connection) return res.status(401).json({ error: "Project belum connect data" });
+    // Token dipakai = token PEMILIK koneksi project (bukan user yang minta)
+    const client = await getClientForProject(info.projectId, req);
+    if (!client) return res.status(401).json({ error: "Token koneksi tidak valid" });
     const searchconsole = google.searchconsole({ version: "v1", auth: client });
 
     const [summary, timeSeries, details] = await Promise.all([
