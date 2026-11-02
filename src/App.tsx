@@ -216,6 +216,8 @@ export default function App() {
     } catch {
       setViewState('select');
     }
+    // muat daftar properti GSC/GA4 untuk layar pilih (jangan kosong/gapapa kalau gagal)
+    fetchSites();
     // refresh picker header
     loadProjects();
   };
@@ -1202,14 +1204,33 @@ export default function App() {
       const headers = await getAuthHeaders();
       const gscRes = await fetch('/api/gsc/sites', { headers });
       const sitesData = await gscRes.json();
+      if (!gscRes.ok || Array.isArray(sitesData) === false) {
+        const msg = sitesData?.error || `GSC (${gscRes.status})`;
+        setSites([]);
+        if (gscRes.status === 401 && String(sitesData?.error || '').includes('Token'))
+          setError('Sesi Google perlu dihubungkan ulang — klik "Hubungkan Akun Google Dulu".');
+        else if (gscRes.status === 401 || gscRes.status === 403)
+          setError('Belum hubungkan akun Google: ' + msg);
+        else
+          setError('Gagal memuat daftar properti Search Console: ' + msg);
+        return;
+      }
       setSites(sitesData);
+      if (Array.isArray(sitesData) && sitesData.length === 0 && projectRole === 'owner' && !isConnected) {
+        // belum connect → tombol connect di bawah yang mengurus
+        return;
+      }
       
       const ga4Res = await fetch('/api/ga4/properties', { headers });
       const ga4Data = await ga4Res.json();
-      if (ga4Res.ok) {
+      if (ga4Res.ok && Array.isArray(ga4Data)) {
         setGa4Properties(ga4Data);
-      } else if (ga4Data.error && ga4Data.error.includes("Google Analytics Admin API is not enabled")) {
-        setError(ga4Data.error);
+      } else if (ga4Data?.error) {
+        // tetap tampilkan GSC (sudah terisi), hanya catat alasan GA4 kosong
+        const extra = ga4Data.error.includes('Google Analytics Admin API is not enabled')
+          ? ' (GA4 API belum aktif di Google Cloud)'
+          : '';
+        setError('Info GA4: ' + ga4Data.error + extra);
       }
     } catch (err) {
       setError('Failed to load sites or properties');
@@ -1609,8 +1630,10 @@ export default function App() {
                   </button>
                 ))
               ) : (
-                <div className="text-center py-4 text-gray-400 text-sm">
-                  No GSC properties found.
+                <div className="text-center py-4 text-gray-400 text-sm space-y-1">
+                  {isConnected
+                    ? <p>Properti Search Console tidak ada. Pastikan websitemu sudah terdaftar di <a className="text-emerald-600 underline" href="https://search.google.com/search-console" target="_blank" rel="noreferrer">Search Console</a>.</p>
+                    : <p>Daftar akan muncul setelah kamu klik <b>"Hubungkan Akun Google Dulu"</b> di bawah.</p>}
                 </div>
               )}
             </div>
@@ -1654,7 +1677,7 @@ export default function App() {
             </div>
           </div>
 
-          {projectRole === 'owner' && !isConnected && (
+          {projectRole === 'owner' && (!isConnected || !projectConnection?.gsc_site) && (
             <button
               onClick={handleConnect}
               disabled={isConnecting}
