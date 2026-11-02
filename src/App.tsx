@@ -179,7 +179,7 @@ export default function App() {
     setInviteBusy(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch('/api/projects/invite', { method: 'POST', headers });
+      const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'invite' }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal membuat undangan');
       setInviteLink(`${window.location.origin}/?invite=${data.invitation.token}`);
@@ -199,9 +199,9 @@ export default function App() {
     (async () => {
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch('/api/invite/redeem', {
+        const res = await fetch('/api/projects', {
           method: 'POST', headers,
-          body: JSON.stringify({ token })
+          body: JSON.stringify({ action: 'redeem', token })
         });
         const data = await res.json();
         if (res.ok) {

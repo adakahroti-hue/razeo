@@ -1,7 +1,10 @@
-// GET /api/projects — daftar project user (auto-buat saat login pertama)
-// POST — buat project baru milik sendiri
+// /api/projects — daftar / buat project, buat undangan, tebus undangan
+// GET                                → daftar project milik user (bootstrap otomatis)
+// POST { name }                      → buat project baru milik sendiri
+// POST { action:"invite" }           → buat link undangan utk project (header X-Project-Id)
+// POST { action:"redeem", token }    → masuk project lewat link undangan
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { supabase, requireUser, listProjects } from "razeo-shared";
+import { supabase, requireUser, listProjects, isMember, projectFrom, inviteToken } from "razeo-shared";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);
@@ -12,8 +15,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const projects = await listProjects(user.uid);
       return res.status(200).json({ projects });
     }
+
     if (req.method === "POST") {
-      const { name } = req.body || {};
+      const body = req.body || {};
+      const action = String(body.action || "").trim();
+
+      // --- tebus link undangan (masuk project sebagai anggota) ---
+      if (action === "redeem") {
+        const token = String(body.token || "").trim();
+        if (!token) return res.status(400).json({ error: "Token undangan kosong" });
+        const { data: inv, error } = await supabase
+          .from("invitations")
+          .select("id, project_id, expires_at, revoked_at, projects(name)")
+          .eq("token", token)
+          .maybeSingle();
+        if (error) throw error;
+        if (!inv) return res.status(404).json({ error: "Link undangan tidak ditemukan" });
+        const rows: any = Array.isArray((inv as any).projects) ? (inv as any).projects[0] : (inv as any).projects;
+        if ((inv as any).revoked_at) return res.status(410).json({ error: "Undangan sudah dibatalkan" });
+        if (new Date((inv as any).expires_at) < new Date()) {
+          return res.status(410).json({ error: "Undangan sudah kedaluwarsa" });
+        }
+        const { data: existing } = await supabase
+          .from("project_members")
+          .select("project_id")
+          .eq("project_id", (inv as any).project_id)
+          .eq("uid", user.uid)
+          .maybeSingle();
+        if (!existing) {
+          const { error: e2 } = await supabase
+            .from("project_members")
+            .insert({ project_id: (inv as any).project_id, uid: user.uid, role: "member" });
+          if (e2) throw e2;
+        }
+        return res.status(200).json({
+          project_id: (inv as any).project_id,
+          name: rows?.name || null,
+          joined: !existing,
+        });
+      }
+
+      // --- buat undangan utk project aktif ---
+      if (action === "invite") {
+        const projectId = projectFrom(req);
+        const role = await isMember(user.uid, projectId);
+        if (!role) return res.status(404).json({ error: "Bukan anggota project ini" });
+        if (role !== "owner") {
+          return res.status(403).json({ error: "Hanya pemilik project yang bisa mengundang" });
+        }
+        const { data, error } = await supabase
+          .from("invitations")
+          .insert({ project_id: projectId, token: inviteToken(), created_by: user.uid })
+          .select("id, token, expires_at, created_at")
+          .single();
+        if (error) throw error;
+        return res.status(201).json({ invitation: data });
+      }
+
+      // --- buat project baru ---
+      const { name } = body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: "Nama project wajib diisi" });
       }
@@ -29,6 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (e2) throw e2;
       return res.status(201).json({ id: proj.id, name: proj.name, role: "owner" });
     }
+
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   } catch (error: any) {
     console.error("projects error:", error.message);
