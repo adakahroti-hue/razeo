@@ -2541,18 +2541,6 @@ export default function App() {
                 <div className="flex-1 min-w-0 w-full">
         {/* Audit Table */}
         <div className="rounded-3xl bg-white border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 lg:px-8 py-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-bold text-gray-900">Content Audit</h2>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  {AUDIT_TABS.find((t) => t.id === auditTab)?.label || 'Modul'}
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">Analisa performa halaman dan temukan peluang optimasi konten.</p>
-            </div>
-          </div>
 
           <div className="flex flex-col lg:flex-row">
             {/* Content Area */}
