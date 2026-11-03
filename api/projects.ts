@@ -72,6 +72,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(201).json({ invitation: data });
       }
 
+      // --- ganti nama project (HANYA pemilik project) ---
+      if (action === "rename") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        if (info.role !== "owner") return res.status(403).json({ error: "Hanya pemilik project yang boleh mengganti nama" });
+        const name = String(body.name || "").trim().slice(0, 120);
+        if (!name) return res.status(400).json({ error: "Nama project wajib diisi" });
+        const { data, error } = await supabase
+          .from("projects")
+          .update({ name })
+          .eq("id", info.projectId)
+          .select("id, name")
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ project: data });
+      }
+
       // --- info project aktif + koneksi GSC/GA4 (siapa pun anggota boleh baca) ---
       if (action === "connection-get") {
         const info = await requireProject(user.uid, req);

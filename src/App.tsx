@@ -246,6 +246,28 @@ export default function App() {
     }
   };
 
+  // Ganti nama project (hanya owner) — return true kalau berhasil
+  const handleRenameProject = async (pid: string, newName: string) => {
+    const name = newName.trim();
+    if (!name) { setError('Nama project wajib diisi'); return false; }
+    setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      headers['X-Project-Id'] = pid; // rename project target, bukan yang aktif
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({ action: 'rename', name })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Gagal mengganti nama');
+      await loadProjects(); // segarkan dropdown & layar pilih
+      return true;
+    } catch (e: any) {
+      setError(e.message || 'Gagal mengganti nama project');
+      return false;
+    }
+  };
+
   // Simpan pilihan GSC + GA4 ke project (hanya owner)
   const handleSaveConnection = async () => {
     if (!selectedSite) { setError('Pilih dulu property Search Console'); return; }
@@ -1367,6 +1389,7 @@ export default function App() {
         setCreateConfirm={setCreateConfirm}
         projectWorking={projectWorking}
         handleCreateProject={handleCreateProject}
+        handleRenameProject={handleRenameProject}
         enterProject={enterProject}
         handleLogout={handleLogout}
       />

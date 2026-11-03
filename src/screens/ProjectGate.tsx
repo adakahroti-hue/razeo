@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertCircle, BarChart3, ChevronRight, RefreshCw, Search, X } from 'lucide-react';
+import { AlertCircle, BarChart3, Check, ChevronRight, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type Props = {
@@ -14,12 +14,32 @@ type Props = {
   setCreateConfirm: (v: boolean) => void;
   projectWorking: boolean;
   handleCreateProject: () => void;
+  handleRenameProject: (pid: string, newName: string) => Promise<boolean>;
   enterProject: (pid: string, name: string, role: string) => void;
   handleLogout: () => void;
 };
 
 export default function ProjectGate(props: Props) {
-  const { error, setError, projects, activeProjectId, projectNameInput, setProjectNameInput, createConfirm, setCreateConfirm, projectWorking, handleCreateProject, enterProject, handleLogout } = props;
+  const { error, setError, projects, activeProjectId, projectNameInput, setProjectNameInput, createConfirm, setCreateConfirm, projectWorking, handleCreateProject, handleRenameProject, enterProject, handleLogout } = props;
+
+  // Edit nama project inline: editingId = id project yang sedang diedit null = tiada
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editWorking, setEditWorking] = useState(false);
+
+  const startEdit = (p: { id: string; name: string }) => {
+    setEditingId(p.id);
+    setEditValue(p.name);
+    setError(null);
+  };
+
+  const submitEdit = async () => {
+    if (!editingId || editWorking || !editValue.trim()) return;
+    setEditWorking(true);
+    const ok = await handleRenameProject(editingId, editValue);
+    setEditWorking(false);
+    if (ok) setEditingId(null);
+  };
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-6">
       {error && (
@@ -51,9 +71,14 @@ export default function ProjectGate(props: Props) {
 
         <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
           {projects.length > 0 ? projects.map((p) => (
-            <button
+            <div
               key={p.id}
-              onClick={() => enterProject(p.id, p.name, p.role)}
+              role="button"
+              tabIndex={0}
+              onClick={() => { if (editingId !== p.id) enterProject(p.id, p.name, p.role); }}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && editingId !== p.id) { e.preventDefault(); enterProject(p.id, p.name, p.role); }
+              }}
               className={cn(
                 "w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between group",
                 activeProjectId === p.id
@@ -65,15 +90,60 @@ export default function ProjectGate(props: Props) {
                 <div className="w-9 h-9 rounded-lg bg-emerald-600/10 flex items-center justify-center flex-shrink-0">
                   <Search className="w-5 h-5 text-emerald-600" />
                 </div>
-                <div className="min-w-0">
-                  <span className="font-semibold truncate block">{p.name}</span>
+                <div className="min-w-0 flex-1">
+                  {editingId === p.id ? (
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); submitEdit(); }
+                        if (e.key === 'Escape') { e.preventDefault(); setEditingId(null); }
+                      }}
+                      className="w-full px-2 py-1 -mx-2 rounded-lg bg-white border-2 border-emerald-500 text-sm font-semibold focus:outline-none"
+                    />
+                  ) : (
+                    <span className="font-semibold truncate block">{p.name}</span>
+                  )}
                   <span className="text-[10px] uppercase tracking-wider text-gray-400">
                     {p.role === 'owner' ? 'Pemilik' : 'Anggota'}
                   </span>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-            </button>
+              {editingId === p.id ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={submitEdit}
+                    disabled={editWorking || !editValue.trim()}
+                    title="Simpan nama"
+                    className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    {editWorking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    title="Batal"
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); if (p.role === 'owner') startEdit(p); }}
+                  title={p.role === 'owner' ? 'Ubah nama project' : 'Hanya pemilik yang boleh mengubah nama'}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all flex-shrink-0",
+                    p.role === 'owner'
+                      ? "text-gray-300 group-hover:text-emerald-600 hover:bg-emerald-50"
+                      : "text-gray-200 cursor-not-allowed"
+                  )}
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           )) : (
             <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
               Belum ada project. Buat yang pertama ↓
