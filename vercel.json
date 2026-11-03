@@ -1,0 +1,16 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://razeo.vercel.app/$1",
+      "permanent": false,
+      "has": [{ "type": "host", "value": "razeo-aldyrazor88-ctrls-projects.vercel.app" }]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "https://razeo.vercel.app/$1",
+      "permanent": false,
+      "has": [{ "type": "host", "value": "razeo-d8jamjedj-aldyrazor88-ctrls-projects.vercel.app" }]
+    }
+  ]
+}

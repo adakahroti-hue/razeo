@@ -304,7 +304,9 @@ export default function App() {
       const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'invite' }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal membuat undangan');
-      setInviteLink(`${window.location.origin}/?invite=${data.invitation.token}`);
+      // selalu tampilkan domain resmi (bukan hostname deployment yang panjang)
+      const APP_ORIGIN = 'https://razeo.vercel.app';
+      setInviteLink(`${APP_ORIGIN}/?invite=${data.invitation.token}`);
     } catch (e: any) {
       setInviteLink('ERROR:' + (e.message || 'gagal'));
     } finally {
