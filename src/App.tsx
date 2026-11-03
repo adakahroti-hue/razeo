@@ -2421,7 +2421,13 @@ export default function App() {
                         {isComparing && stat.currentRaw !== undefined && renderChange(stat.currentRaw, stat.prevRaw, stat.inverse)}
                       </div>
                       <div className="flex items-end justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
+                          {isComparing && (
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span className="text-sm font-bold text-gray-400">{stat.prevValue}</span>
+                              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">periode sebelumnya</span>
+                            </div>
+                          )}
                           <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
                           <div className="text-[10px] text-gray-400 font-medium mt-2">
                             {fmtDate(isMainRecent ? startDate : compareStartDate)} - {fmtDate(isMainRecent ? endDate : compareEndDate)}
@@ -2439,12 +2445,6 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      {isComparing && (
-                        <div className="pt-3 mt-3 border-t border-gray-100">
-                          <div className="text-lg font-bold text-gray-500">{stat.prevValue}</div>
-                          <div className="text-[10px] text-gray-400 font-medium">Periode pembanding</div>
-                        </div>
-                      )}
                     </motion.div>
                   );
                 })}
