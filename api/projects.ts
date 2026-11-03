@@ -72,6 +72,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(201).json({ invitation: data });
       }
 
+      // --- hapus project (HANYA pemilik project) ---
+      if (action === "delete") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        if (info.role !== "owner") return res.status(403).json({ error: "Hanya pemilik project yang boleh menghapus" });
+        const { error } = await supabase
+          .from("projects")
+          .delete()
+          .eq("id", info.projectId)
+          .eq("owner_uid", user.uid);
+        if (error) {
+          console.error("delete project error:", error.message);
+          return res.status(409).json({ error: "Gagal hapus project: " + error.message });
+        }
+        return res.status(200).json({ deleted: true, id: info.projectId });
+      }
+
       // --- ganti nama project (HANYA pemilik project) ---
       if (action === "rename") {
         const info = await requireProject(user.uid, req);

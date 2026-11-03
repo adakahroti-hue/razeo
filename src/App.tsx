@@ -103,9 +103,6 @@ export default function App() {
   viewStateRef.current = viewState;
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
-  const [projectNameInput, setProjectNameInput] = useState('');
-  // Konfirmasi Enter: Enter pertama hanya konfirmasi, Enter kedua baru membuat project
-  const [createConfirm, setCreateConfirm] = useState(false);
   const [projectWorking, setProjectWorking] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -188,7 +185,6 @@ export default function App() {
     localStorage.setItem('razeo_project', pid);
     setActiveProjectId(pid);
     setProjectRole(role);
-    setProjectNameInput('');
     // muat status koneksi GSC/GA4 milik project ini
     try {
       const headers = await getAuthHeaders();
@@ -222,10 +218,10 @@ export default function App() {
     loadProjects();
   };
 
-  // Buat project baru dari gerbang
-  const handleCreateProject = async () => {
-    const name = projectNameInput.trim();
-    if (!name) { setError('Nama project wajib diisi'); return; }
+  // Buat project baru (dipanggil modal di ProjectGate) → sukses = langsung masuk
+  const handleCreateProject = async (givenName: string): Promise<boolean> => {
+    const name = givenName.trim();
+    if (!name) { setError('Nama project wajib diisi'); return false; }
     setProjectWorking(true); setError(null);
     try {
       const headers = await getAuthHeaders();
@@ -237,11 +233,34 @@ export default function App() {
       if (!res.ok) throw new Error(d.error || 'Gagal membuat project');
       await loadProjects();
       await enterProject(d.id, d.name, 'owner');
+      return true;
     } catch (e: any) {
       setError(e.message || 'Gagal membuat project');
-      setCreateConfirm(false);
+      return false;
     } finally {
       setProjectWorking(false);
+    }
+  };
+
+  // Hapus project (hanya owner) — return true kalau berhasil
+  const handleDeleteProject = async (pid: string) => {
+    setError(null);
+    try {
+      const headers = await getAuthHeaders();
+      headers['X-Project-Id'] = pid;
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({ action: 'delete' })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Gagal menghapus project');
+      await loadProjects();
+      // kalau project yang baru dihapus itu yang aktif → reset pilihan
+      if (localStorage.getItem('razeo_project') === pid) localStorage.removeItem('razeo_project');
+      return true;
+    } catch (e: any) {
+      setError(e.message || 'Gagal menghapus project');
+      return false;
     }
   };
 
@@ -1384,13 +1403,10 @@ export default function App() {
         setError={setError}
         projects={projects}
         activeProjectId={activeProjectId}
-        projectNameInput={projectNameInput}
-        setProjectNameInput={setProjectNameInput}
-        createConfirm={createConfirm}
-        setCreateConfirm={setCreateConfirm}
-        projectWorking={projectWorking}
-        handleCreateProject={handleCreateProject}
+        handleCreateProjectWith={handleCreateProject}
         handleRenameProject={handleRenameProject}
+        handleDeleteProject={handleDeleteProject}
+        user={user}
         enterProject={enterProject}
         handleLogout={handleLogout}
       />

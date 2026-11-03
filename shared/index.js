@@ -102,7 +102,21 @@ export async function listProjects(uid) {
     owner_uid: r.projects?.owner_uid,
     created_at: r.projects?.created_at,
   }));
-  if (list.length > 0) return list;
+  if (list.length > 0) {
+    // lampirkan status GSC/GA4 tiap project (untuk pill "GSC Aktif" dll)
+    const ids = list.map((p) => p.id);
+    const { data: conns } = await supabase
+      .from("project_connections")
+      .select("project_id, gsc_site, ga4_property")
+      .in("project_id", ids);
+    const byId = new Map((conns || []).map((c) => [c.project_id, c]));
+    for (const p of list) {
+      const c = byId.get(p.id);
+      p.gsc_site = c?.gsc_site || null;
+      p.ga4_property = c?.ga4_property || null;
+    }
+    return list;
+  }
 
   // belum ada project → buat milik pribadi
   const { data: proj, error: e1 } = await supabase
