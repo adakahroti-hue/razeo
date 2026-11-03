@@ -101,7 +101,6 @@ export default function App() {
   // Ref view terkini — dibaca async/callback supaya tidak memakai nilai basi (closure)
   const viewStateRef = useRef<'login' | 'project' | 'select' | 'dashboard'>('login');
   viewStateRef.current = viewState;
-  const guardProjectGate = () => viewStateRef.current !== 'project';
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectNameInput, setProjectNameInput] = useState('');
@@ -1161,10 +1160,9 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         setIsConnected(true);
-        if (guardProjectGate()) {
-          setViewState('select');
-          fetchSites();
-        }
+        // hanyalari saat sedang di layar pilih-properti (memuat ulang data);
+        // jangan angkat gerbang project / dashboard ke layar connect
+        if (viewStateRef.current === 'select') fetchSites();
       }
     };
     window.addEventListener('message', handleMessage);
@@ -1182,9 +1180,10 @@ export default function App() {
       }
       const status = await res.json();
       setIsConnected(status.connected);
-      // hanya pindah ke layar properti kalau TIDAK sedang di gerbang pilih/buat project
-      if (status.connected && guardProjectGate()) {
-        setViewState('select');
+      // PERBAIKAN: jangan pernah memindahkan halaman — cek ini dipanggil berkali-kali
+      // (mis. saat refresh token otomatis), yang dulu menyeret dashboard kembali
+      // ke layar connect GSC. Cukup isi ulang daftar kalau memang sedang di layar itu.
+      if (status.connected && viewStateRef.current === 'select') {
         fetchSites();
       }
     } catch (err) {
