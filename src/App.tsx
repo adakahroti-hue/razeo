@@ -1280,6 +1280,15 @@ export default function App() {
     }
   };
 
+  // PENGAMAN: selama user terdeteksi, layar login/landing TIDAK boleh tampil —
+  // langsung buka gerbang project; restore di bawah akan menariknya ke dashboard.
+  useEffect(() => {
+    if (user && viewStateRef.current === 'login') {
+      viewStateRef.current = 'project';
+      setViewState('project');
+    }
+  }, [user, viewState]);
+
   useEffect(() => {
     if (user) {
       (async () => {
