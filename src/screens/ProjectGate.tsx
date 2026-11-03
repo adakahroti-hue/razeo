@@ -98,27 +98,31 @@ export default function ProjectGate(props: Props) {
             <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center">
               <BarChart3 className="w-5 h-5 text-emerald-500" />
             </div>
-            <span className="font-bold text-gray-700 text-[15px] tracking-tight">SEO & Analytics Suite</span>
+            <span className="font-bold text-gray-700 text-[15px] tracking-tight">Razeo</span>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 bg-white border border-gray-200 rounded-full hover:border-gray-300 transition-colors"
-            title="Keluar"
-          >
-            <span className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold">
-              {(user?.email || 'U').charAt(0).toUpperCase()}
-            </span>
-            <span className="hidden sm:flex items-center gap-1.5">
-              <span className="text-[13px] text-gray-600 max-w-[170px] truncate">{user?.email || 'Akun'}</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            </span>
-            <span className="w-px h-6 bg-gray-200" />
-            <span className="flex items-center gap-1.5 text-[13px] text-gray-600 pr-0.5">
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* card email */}
+            <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 bg-white border border-gray-200 rounded-full">
+              <span className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold">
+                {(user?.email || 'U').charAt(0).toUpperCase()}
+              </span>
+              <span className="hidden sm:flex items-center gap-1.5">
+                <span className="text-[13px] text-gray-600 max-w-[170px] truncate">{user?.email || 'Akun'}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              </span>
+            </div>
+
+            {/* tombol logout */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 pl-3 pr-3.5 py-2.5 bg-white border border-gray-200 rounded-full hover:border-red-200 hover:text-red-600 text-gray-600 transition-colors"
+              title="Keluar"
+            >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Keluar</span>
-            </span>
-          </button>
+              <span className="hidden sm:inline text-[13px] font-medium">Keluar</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -150,9 +154,6 @@ export default function ProjectGate(props: Props) {
               <BarChart3 className="w-6 h-6 text-emerald-500" />
             </div>
             <h2 className="mt-4 text-2xl font-bold">Pilih Project</h2>
-            <p className="mt-1.5 text-sm text-gray-500">
-              Setiap project punya data Search Console (GSC) & Google Analytics (GA4) sendiri-sendiri. Pilih untuk melanjutkan.
-            </p>
             <span className="inline-flex items-center gap-1.5 mt-4 px-3 py-1 rounded-full bg-gray-50 border border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               {projects.length} Project Tersedia
@@ -286,15 +287,10 @@ export default function ProjectGate(props: Props) {
         </motion.div>
       </main>
 
-      {/* footer teks */}
-      <p className="relative z-10 text-center text-[11px] text-gray-400 pb-6 px-5">
-        Data dilindungi koneksi (OAuth) resmi Google Search Console & Google Analytics 4 — hanya akses baca.
-      </p>
-
       {/* FAB project baru */}
       <button
         onClick={openCreate}
-        className="fixed bottom-6 right-6 z-30 inline-flex items-center gap-2 px-5 py-3 rounded-full bg-emerald-600 text-white text-sm font-bold shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 active:scale-95 transition-all"
+        className="fixed bottom-10 right-10 z-30 inline-flex items-center gap-2 px-5 py-3 rounded-full bg-emerald-600 text-white text-sm font-bold shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 active:scale-95 transition-all"
       >
         <Plus className="w-5 h-5" />
         Project Baru
