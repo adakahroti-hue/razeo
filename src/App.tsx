@@ -1292,8 +1292,10 @@ export default function App() {
   useEffect(() => {
     if (user) {
       (async () => {
-        // hanya saat baru masuk (view masih 'login') — saat sedang dipakai tidak disentuh
-        if (viewStateRef.current === 'login') {
+        // Saat baru masuk — layar bisa 'login' (normal) atau sudah 'project'
+        // (pengaman di atas sempat menyetelnya). Restore tetap dicoba agar
+        // refresh dari dashboard langsung kembali ke dashboard.
+        if (viewStateRef.current === 'login' || viewStateRef.current === 'project') {
           const restored = await restoreSessionToDashboard();
           if (!restored && viewStateRef.current === 'login') {
             // tidak ada project tersambung → gerbang pilih/buat project
