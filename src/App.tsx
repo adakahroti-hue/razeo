@@ -83,6 +83,20 @@ interface GA4Row {
   metricValues: { value: string }[];
 }
 
+// Daftar modul audit — dipakai sidebar kategori & badge judul kartu
+const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean }> = [
+  { id: 'ctr', label: 'CTR Analysis', icon: MousePointer2 },
+  { id: 'lhf', label: 'Low Hanging Fruit', icon: Target },
+  { id: 'declining', label: 'Declining', icon: TrendingUp },
+  { id: 'zero', label: 'Zero Traffic', icon: AlertCircle },
+  { id: 'enrichment', label: 'Enrichment', icon: Target },
+  { id: 'ai', label: 'AI Search', icon: Search, isNew: true },
+  { id: 'consolidation', label: 'Consolidation', icon: Filter },
+  { id: 'scroll', label: 'Scroll Optimization', icon: TrendingUp },
+  { id: 'er', label: 'ER Optimization', icon: BarChart3 },
+  { id: 'cta', label: 'CTA Optimization', icon: MousePointer2 },
+];
+
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +118,19 @@ export default function App() {
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectWorking, setProjectWorking] = useState(false);
+  // pill rentang tanggal (header) & shortcut pencarian
+  const [showDatePop, setShowDatePop] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [compareStartDate, setCompareStartDate] = useState<string>(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -2217,21 +2244,26 @@ export default function App() {
     return matchesSearch && matchesMonth;
   });
 
+  const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+  const dateRangeLabel = `${fmtDate(isMainRecent ? startDate : compareStartDate)} - ${fmtDate(isMainRecent ? endDate : compareEndDate)}`;
+  const displayName = (user?.user_metadata as any)?.full_name || user?.email || 'Pengguna';
+  const initials = displayName.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-6 min-w-0">
+            <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <h1 className="font-bold text-lg hidden md:block">SEO HUB</h1>
+              <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
+              <span className="text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Pro</span>
             </div>
 
-            <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-              <button 
+            <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shrink-0">
+              <button
                 onClick={() => setCurrentTab('dashboard')}
                 className={cn(
                   "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
@@ -2240,7 +2272,7 @@ export default function App() {
               >
                 Performa
               </button>
-              <button 
+              <button
                 onClick={() => setCurrentTab('tracker')}
                 className={cn(
                   "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
@@ -2250,118 +2282,73 @@ export default function App() {
                 Pelacak Aksi
               </button>
             </nav>
-
-            {user && projects.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select
-                  value={activeProjectId ?? ''}
-                  onChange={(e) => {
-                    const pid = e.target.value;
-                    const chosen = projects.find((p) => p.id === pid);
-                    localStorage.setItem('razeo_project', pid);
-                    setActiveProjectId(pid);
-                    // muat koneksi project terpilih (role + GSC/GA4) lalu tampilkan
-                    if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
-                  }}
-                  className="text-sm font-bold bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5 max-w-[180px] truncate focus:outline-none"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleOpenInvite}
-                  className="px-2.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                  title="Undang anggota ke project"
-                >
-                  Undang
-                </button>
-              </div>
-            )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             {currentTab === 'dashboard' && (
-              <div className="hidden lg:flex items-center gap-3">
-                <button 
-                  onClick={() => setViewState('select')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm hover:border-emerald-500/50 transition-colors shadow-sm"
-                >
-                  <Globe className="w-4 h-4 text-emerald-600" />
-                  <span className="font-medium truncate max-w-[150px] md:max-w-md">{selectedSite}</span>
-                  <ChevronRight className="w-3 h-3 rotate-90" />
-                </button>
-
-                <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg p-1">
-                  <div className="flex items-center gap-2 px-2">
-                    <div className="flex flex-col">
-                      <span className={cn(
-                        "text-[9px] uppercase font-black leading-none mb-0.5",
-                        isMainRecent ? "text-emerald-600" : "text-amber-600"
-                      )}>
-                        {isMainRecent ? 'Current' : 'Previous'}
-                      </span>
-                      <input 
-                        type="date" 
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="bg-transparent text-xs text-gray-700 focus:outline-none font-bold"
-                      />
+              <>
+                {/* Pill rentang tanggal */}
+                <div className="relative hidden md:block">
+                  <button
+                    onClick={() => setShowDatePop(!showDatePop)}
+                    className="flex items-center gap-2.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm hover:border-gray-300 transition-colors"
+                    title="Atur rentang tanggal"
+                  >
+                    <span className={cn("text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded", isMainRecent ? "bg-emerald-500 text-white" : "bg-amber-500 text-white")}>
+                      {isMainRecent ? 'Current' : 'Previous'}
+                    </span>
+                    <span className="text-xs font-bold text-gray-700 hidden sm:inline">{dateRangeLabel}</span>
+                    <span className="text-xs font-bold text-gray-700 sm:hidden">{fmtDate(isMainRecent ? startDate : compareStartDate)}</span>
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                  </button>
+                  {showDatePop && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-[60] space-y-3">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Mulai</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Selesai</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400">Rentang ini dipakai kartu statistik & tabel audit.</p>
                     </div>
-                  </div>
-                  <div className="w-px h-6 bg-gray-200" />
-                  <div className="flex items-center gap-2 px-2">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-gray-400 uppercase font-black leading-none mb-0.5">End</span>
-                      <input 
-                        type="date" 
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="bg-transparent text-xs text-gray-700 focus:outline-none font-bold"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                <button 
+                <button
                   onClick={() => setIsComparing(!isComparing)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-xs font-bold transition-all border flex items-center gap-2",
-                    isComparing 
-                      ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
-                      : "bg-white border-gray-200 text-gray-500 hover:text-gray-700 shadow-sm"
+                    "px-3.5 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2",
+                    isComparing
+                      ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                      : "bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 shadow-sm"
                   )}
                 >
-                  <RefreshCw className={cn("w-3 h-3", isComparing && "animate-spin-once")} />
+                  <RefreshCw className={cn("w-3.5 h-3.5", isComparing && "animate-spin-once")} />
                   {isComparing ? 'Comparing' : 'Compare'}
                 </button>
-              </div>
-            )}
 
-            <div className="flex items-center gap-2">
-              {currentTab === 'dashboard' && (
-                <button 
+                <button
                   onClick={() => selectedSite && fetchData(selectedSite)}
                   disabled={isFetchingData}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 text-gray-600"
+                  className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors disabled:opacity-50 text-gray-600 shadow-sm"
+                  title="Muat ulang data"
                 >
-                  <RefreshCw className={cn("w-5 h-5", isFetchingData && "animate-spin")} />
+                  <RefreshCw className={cn("w-4 h-4", isFetchingData && "animate-spin")} />
                 </button>
-              )}
-              <div className="h-8 w-px bg-gray-200 mx-2" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold text-gray-900">{(user?.user_metadata as any)?.full_name || user?.email || 'Pengguna'}</span>
-                  <span className="text-[10px] text-gray-400">{user?.email}</span>
-                </div>
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -2386,132 +2373,211 @@ export default function App() {
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { 
-                    label: 'Total clicks', 
-                    value: totalClicks >= 1000 ? `${(totalClicks/1000).toFixed(2)}K` : totalClicks.toLocaleString(), 
+                  {
+                    label: 'Total clicks',
+                    value: totalClicks >= 1000 ? `${(totalClicks/1000).toFixed(2)}K` : totalClicks.toLocaleString(),
                     prevValue: compClicks >= 1000 ? `${(compClicks/1000).toFixed(2)}K` : compClicks.toLocaleString(),
-                    icon: MousePointer2, 
-                    iconColor: 'text-[#4285f4]',
-                    currentRaw: totalClicks, 
-                    prevRaw: compClicks 
+                    icon: MousePointer2,
+                    circle: 'bg-blue-50', color: 'text-blue-500', spark: 'bg-blue-400',
+                    sparkKey: 'clicks',
+                    currentRaw: totalClicks, prevRaw: compClicks
                   },
-                  { 
-                    label: 'Total impressions', 
-                    value: totalImpressions >= 1000 ? `${(totalImpressions/1000).toFixed(0)}K` : totalImpressions.toLocaleString(), 
+                  {
+                    label: 'Total impressions',
+                    value: totalImpressions >= 1000 ? `${(totalImpressions/1000).toFixed(0)}K` : totalImpressions.toLocaleString(),
                     prevValue: compImpressions >= 1000 ? `${(compImpressions/1000).toFixed(0)}K` : compImpressions.toLocaleString(),
-                    icon: Eye, 
-                    iconColor: 'text-[#7b1fa2]',
-                    currentRaw: totalImpressions, 
-                    prevRaw: compImpressions 
+                    icon: Eye,
+                    circle: 'bg-violet-50', color: 'text-violet-500', spark: 'bg-violet-400',
+                    sparkKey: 'impressions',
+                    currentRaw: totalImpressions, prevRaw: compImpressions
                   },
-                  { 
-                    label: 'Average CTR', 
-                    value: `${avgCtr.toFixed(1)}%`, 
+                  {
+                    label: 'Average CTR',
+                    value: `${avgCtr.toFixed(1)}%`,
                     prevValue: `${compCtr.toFixed(1)}%`,
-                    icon: TrendingUp, 
-                    iconColor: 'text-[#0097a7]',
-                    currentRaw: avgCtr, 
-                    prevRaw: compCtr 
+                    icon: TrendingUp,
+                    circle: 'bg-teal-50', color: 'text-teal-500', spark: 'bg-teal-400',
+                    sparkKey: 'ctr',
+                    currentRaw: avgCtr, prevRaw: compCtr
                   },
-                  { 
-                    label: 'Average position', 
-                    value: avgPos.toFixed(1), 
+                  {
+                    label: 'Average position',
+                    value: avgPos.toFixed(1),
                     prevValue: compPos.toFixed(1),
-                    icon: BarChart3, 
-                    iconColor: 'text-[#ef6c00]',
-                    currentRaw: avgPos, 
-                    prevRaw: compPos, 
-                    inverse: true 
+                    icon: BarChart3,
+                    circle: 'bg-amber-50', color: 'text-amber-500', spark: 'bg-amber-400',
+                    sparkKey: 'position',
+                    currentRaw: avgPos, prevRaw: compPos,
+                    inverse: true
                   }
-                ].map((stat, i) => (
-                  <motion.div 
-                    key={i}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="p-4 rounded-xl shadow-sm border border-gray-200 bg-white transition-all relative overflow-hidden"
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <stat.icon className={cn("w-4 h-4", stat.iconColor)} />
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{stat.label}</span>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="text-3xl font-bold leading-none mb-1 text-gray-900">{stat.value}</div>
-                          <div className="text-[10px] text-gray-400 font-medium">
-                            {new Date(isMainRecent ? startDate : compareStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: '2-digit' })} - {new Date(isMainRecent ? endDate : compareEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: '2-digit' })}
-                          </div>
+                ].map((stat, i) => {
+                  const sparkRows = Array.isArray(timeSeries) ? timeSeries.slice(-14) : [];
+                  const sparkVals = sparkRows.map((r: any) => Number(r?.[stat.sparkKey]) || 0);
+                  const sparkMax = Math.max(1, ...sparkVals);
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="p-5 rounded-xl shadow-sm border border-gray-200 bg-white"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className={cn("w-8 h-8 rounded-lg flex items-center justify-center", stat.circle)}>
+                            <stat.icon className={cn("w-4 h-4", stat.color)} />
+                          </span>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">{stat.label}</span>
                         </div>
                         {isComparing && stat.currentRaw !== undefined && renderChange(stat.currentRaw, stat.prevRaw, stat.inverse)}
                       </div>
-
-                      {isComparing && (
-                        <div className="pt-3 border-t border-gray-100">
-                          <div className="text-xl font-bold text-gray-600 mb-0.5">{stat.prevValue}</div>
-                          <div className="text-[10px] text-gray-400 font-medium">
-                            {new Date(isMainRecent ? compareStartDate : startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: '2-digit' })} - {new Date(isMainRecent ? compareEndDate : endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: '2-digit' })}
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
+                          <div className="text-[10px] text-gray-400 font-medium mt-2">
+                            {fmtDate(isMainRecent ? startDate : compareStartDate)} - {fmtDate(isMainRecent ? endDate : compareEndDate)}
                           </div>
                         </div>
+                        {sparkVals.length > 0 && (
+                          <div className="flex items-end gap-[3px] h-9">
+                            {sparkVals.map((v: number, k: number) => (
+                              <div
+                                key={k}
+                                className={cn("w-1.5 rounded-sm", stat.spark, "opacity-70")}
+                                style={{ height: `${Math.max(10, (v / sparkMax) * 100)}%` }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {isComparing && (
+                        <div className="pt-3 mt-3 border-t border-gray-100">
+                          <div className="text-lg font-bold text-gray-500">{stat.prevValue}</div>
+                          <div className="text-[10px] text-gray-400 font-medium">Periode pembanding</div>
+                        </div>
                       )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
 
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* ===== SIDEBAR KIRI: kategori modul + info project/pengguna ===== */}
+                <aside className="w-full lg:w-64 shrink-0 bg-white border border-gray-200 rounded-2xl p-4 lg:sticky lg:top-24">
+                  <div className="flex items-center justify-between px-1 mb-3">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Categories</span>
+                    <span className="text-[11px] font-black text-emerald-600">{AUDIT_TABS.length} Modul</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {AUDIT_TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setAuditTab(tab.id as any)}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all text-left font-semibold",
+                          auditTab === tab.id
+                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        )}
+                      >
+                        <tab.icon className={cn("w-4 h-4 shrink-0", auditTab === tab.id ? "text-white" : "text-gray-400")} />
+                        <span className="flex-1 truncate">{tab.label}</span>
+                        {tab.isNew && (
+                          <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded", auditTab === tab.id ? "bg-white/25 text-white" : "bg-violet-100 text-violet-600")}>
+                            NEW
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2.5">
+                    {projects.length > 0 && (
+                      <select
+                        value={activeProjectId ?? ''}
+                        onChange={(e) => {
+                          const pid = e.target.value;
+                          const chosen = projects.find((pp) => pp.id === pid);
+                          localStorage.setItem('razeo_project', pid);
+                          setActiveProjectId(pid);
+                          if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
+                        }}
+                        className="w-full text-sm font-bold bg-white border border-gray-200 rounded-xl px-3 py-2.5 truncate focus:outline-none focus:border-emerald-500"
+                        title="Ganti project"
+                      >
+                        {projects.map((pp) => (
+                          <option key={pp.id} value={pp.id}>{pp.name}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    <button
+                      onClick={() => setViewState('select')}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm hover:border-emerald-300 transition-colors"
+                      title="Ganti property Search Console / GA4"
+                    >
+                      <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
+                    </button>
+
+                    <button
+                      onClick={handleOpenInvite}
+                      className="w-full py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors"
+                      title="Undang anggota ke project"
+                    >
+                      + Undang Anggota
+                    </button>
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-800 truncate">{displayName}</p>
+                        <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                        title="Keluar"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="flex-1 min-w-0 w-full">
         {/* Audit Table */}
         <div className="rounded-3xl bg-white border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="px-6 lg:px-8 py-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Content Audit</h2>
-              <p className="text-sm text-gray-500">Analyze performance and find optimization opportunities.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search queries..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 w-full md:w-64"
-                />
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-xl font-bold text-gray-900">Content Audit</h2>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {AUDIT_TABS.find((t) => t.id === auditTab)?.label || 'Modul'}
+                </span>
               </div>
+              <p className="text-sm text-gray-500 mt-1">Analisa performa halaman dan temukan peluang optimasi konten.</p>
+            </div>
+            <div className="relative w-full md:w-72">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search queries or pages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-14 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">⌘K</span>
             </div>
           </div>
 
           <div className="flex flex-col lg:flex-row">
-            {/* Sidebar Tabs */}
-            <div className="w-full lg:w-72 border-b lg:border-b-0 lg:border-r border-gray-100 p-6 space-y-1 bg-gray-50/50">
-              {[
-                { id: 'ctr', label: 'CTR Analysis', icon: MousePointer2 },
-                { id: 'lhf', label: 'Low Hanging Fruit', icon: Target },
-                { id: 'declining', label: 'Declining', icon: TrendingUp },
-                { id: 'zero', label: 'Zero Traffic', icon: AlertCircle },
-                { id: 'enrichment', label: 'Enrichment', icon: Target },
-                { id: 'ai', label: 'AI Search', icon: Search },
-                { id: 'consolidation', label: 'Consolidation', icon: Filter },
-                { id: 'scroll', label: 'Scroll Optimization', icon: TrendingUp },
-                { id: 'er', label: 'ER Optimization', icon: BarChart3 },
-                { id: 'cta', label: 'CTA Optimization', icon: MousePointer2 },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setAuditTab(tab.id as any)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left",
-                    auditTab === tab.id 
-                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
-                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                  )}
-                >
-                  <tab.icon className={cn("w-4 h-4", auditTab === tab.id ? "text-white" : "text-gray-400")} />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
             {/* Content Area */}
             <div className="flex-1 min-w-0">
               {auditTab === 'ctr' ? (
@@ -3696,6 +3762,8 @@ export default function App() {
           </div>
         )}
           </div>
+        </div>
+      </div>
         </div>
       </div>
           </motion.div>
