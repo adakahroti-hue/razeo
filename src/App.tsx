@@ -1230,16 +1230,49 @@ export default function App() {
     }
   };
 
+  // Pulihkan sesi setelah refresh: kalau project terakhir sudah connect GSC/GA4,
+  // langsung kembali ke dashboard (bukan gerbang pilih project).
+  const restoreSessionToDashboard = async (): Promise<boolean> => {
+    try {
+      await loadProjects(); // isi activeProjectId & dropdown dari localStorage
+      const pid = localStorage.getItem('razeo_project');
+      if (!pid) return false;
+      const headers = await getAuthHeaders();
+      headers['X-Project-Id'] = pid; // target project TERSIMPAN, bukan yang pertama
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers,
+        body: JSON.stringify({ action: 'connection-get' }),
+      });
+      if (!res.ok) return false; // project bukan milik user ini / sesi bermasalah
+      const d = await res.json();
+      if (!d.connection?.gsc_site) return false; // belum connect → gerbang dulu
+      setActiveProjectId(pid);
+      setProjectConnection(d.connection ?? null);
+      setProjectRole(d.role ?? null);
+      setSelectedSite(d.connection.gsc_site);
+      setSelectedGa4Property(d.connection.ga4_property ?? null);
+      setViewState('dashboard');
+      fetchData(d.connection.gsc_site); // isi data (tanpa await — spinner card yang menandai)
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (user) {
-      // habis login Google → gerbang pilih/buat project dulu
-      // ref diset sinkron dulu supaya checkAuthStatus (async) tidak sempat
-      // mengira masih di layar login lalu menyeret ke layar properti
-      if (viewStateRef.current === 'login') {
-        viewStateRef.current = 'project';
-        setViewState('project');
-      }
-      checkAuthStatus();
+      (async () => {
+        // hanya saat baru masuk (view masih 'login') — saat sedang dipakai tidak disentuh
+        if (viewStateRef.current === 'login') {
+          const restored = await restoreSessionToDashboard();
+          if (!restored && viewStateRef.current === 'login') {
+            // tidak ada project tersambung → gerbang pilih/buat project
+            viewStateRef.current = 'project';
+            setViewState('project');
+          }
+        }
+        checkAuthStatus();
+      })();
     } else {
       setIsLoading(false);
     }
