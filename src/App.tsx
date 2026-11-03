@@ -1255,25 +1255,32 @@ export default function App() {
   // langsung kembali ke dashboard (bukan gerbang pilih project).
   const restoreSessionToDashboard = async (): Promise<boolean> => {
     try {
-      await loadProjects(); // isi activeProjectId & dropdown dari localStorage
-      const pid = localStorage.getItem('razeo_project');
-      if (!pid) return false;
+      // Satu permintaan saja: daftar project sudah menyertakan gsc_site/ga4_property
+      // per project (lihat listProjects di shared) — tanpa langkah tambahan yang bisa gagal.
       const headers = await getAuthHeaders();
-      headers['X-Project-Id'] = pid; // target project TERSIMPAN, bukan yang pertama
-      const res = await fetch('/api/projects', {
-        method: 'POST', headers,
-        body: JSON.stringify({ action: 'connection-get' }),
-      });
-      if (!res.ok) return false; // project bukan milik user ini / sesi bermasalah
+      if (!('Authorization' in headers)) return false;
+      const res = await fetch('/api/projects', { headers });
+      if (!res.ok) return false;
       const d = await res.json();
-      if (!d.connection?.gsc_site) return false; // belum connect → gerbang dulu
-      setActiveProjectId(pid);
-      setProjectConnection(d.connection ?? null);
-      setProjectRole(d.role ?? null);
-      setSelectedSite(d.connection.gsc_site);
-      setSelectedGa4Property(d.connection.ga4_property ?? null);
+      const list: any[] = d.projects || [];
+      if (list.length === 0) return false;
+      // prioritas: project terakhir dipakai (yang sudah connect) → project mana pun
+      // yang sudah connect → kalau tidak ada satupun, kembali ke gerbang.
+      const saved = localStorage.getItem('razeo_project');
+      const proj =
+        list.find((pp) => pp.id === saved && pp.gsc_site) ||
+        list.find((pp) => pp.gsc_site) ||
+        list.find((pp) => pp.id === saved) ||
+        list[0];
+      if (!proj.gsc_site) return false; // tidak ada project tersambung → gerbang dulu
+      localStorage.setItem('razeo_project', proj.id);
+      setActiveProjectId(proj.id);
+      setProjectRole(proj.role ?? null);
+      setProjectConnection({ gsc_site: proj.gsc_site, ga4_property: proj.ga4_property ?? null, connected_at: null });
+      setSelectedSite(proj.gsc_site);
+      setSelectedGa4Property(proj.ga4_property ?? null);
       setViewState('dashboard');
-      fetchData(d.connection.gsc_site); // isi data (tanpa await — spinner card yang menandai)
+      fetchData(proj.gsc_site); // isi data (spinner kartu yang menandai proses)
       return true;
     } catch {
       return false;
