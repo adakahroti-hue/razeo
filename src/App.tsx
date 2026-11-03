@@ -118,19 +118,8 @@ export default function App() {
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectWorking, setProjectWorking] = useState(false);
-  // pill rentang tanggal (header) & shortcut pencarian
+  // pill rentang tanggal (header)
   const [showDatePop, setShowDatePop] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [compareStartDate, setCompareStartDate] = useState<string>(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -2562,18 +2551,6 @@ export default function App() {
                 </span>
               </div>
               <p className="text-sm text-gray-500 mt-1">Analisa performa halaman dan temukan peluang optimasi konten.</p>
-            </div>
-            <div className="relative w-full md:w-72">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search queries or pages..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-14 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">⌘K</span>
             </div>
           </div>
 
