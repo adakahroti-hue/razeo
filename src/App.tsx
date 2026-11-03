@@ -2283,9 +2283,11 @@ export default function App() {
                     className="flex items-center gap-2.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm hover:border-gray-300 transition-colors"
                     title="Atur rentang tanggal"
                   >
-                    <span className={cn("text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded", isMainRecent ? "bg-emerald-500 text-white" : "bg-amber-500 text-white")}>
-                      {isMainRecent ? 'Current' : 'Previous'}
-                    </span>
+{!isMainRecent && (
+                      <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500 text-white">
+                        Previous
+                      </span>
+                    )}
                     <span className="text-xs font-bold text-gray-700 hidden sm:inline">{dateRangeLabel}</span>
                     <span className="text-xs font-bold text-gray-700 sm:hidden">{fmtDate(isMainRecent ? startDate : compareStartDate)}</span>
                     <Calendar className="w-4 h-4 text-gray-400" />
