@@ -381,15 +381,36 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    // state login awal
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user as User | null);
-      if (data.user) loadProjects();
-    });
-    // dengarkan perubahan login; refresh token ditangani supabase-js sendiri
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser((session?.user as User | null) ?? null);
-      if (session?.user) loadProjects();
+    // Baca sesi dari penyimpanan lokal dulu (getSession), lalu verifikasi ke server.
+    // getUser() saja dulu berisiko: kalau verifikasi jaringan gagal, aplikasi mengira
+    // belum login dan melempar pengguna ke layar login saat refresh.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (data.session?.user) {
+          setUser(data.session.user as User | null);
+          loadProjects();
+          return;
+        }
+        // tidak ada sesi lokal → coba verifikasi server (fallback)
+        return supabase.auth.getUser().then(({ data: g }) => {
+          setUser(g.user as User | null);
+          if (g.user) loadProjects();
+        });
+      })
+      .catch(() => {
+        // gagal baca penyimpanan → biarkan pendengar sesi yang mengurus
+      });
+    // dengarkan perubahan login; refresh token ditangani supabase-js sendiri.
+    // Penting: sesi hilang hanya berarti keluar kalau memang event SIGNED_OUT
+    // (klik logout). Event lain dengan session kosong TIDAK menendang ke login.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setUser(session.user as User | null);
+        loadProjects();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
