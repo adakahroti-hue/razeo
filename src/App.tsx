@@ -100,6 +100,12 @@ const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean 
   { id: 'cta', label: 'CTA Optimization', icon: MousePointer2 },
 ];
 
+// ===== URL halaman (sinkron dengan viewState, tanpa library routing) =====
+const VIEW_PATHS: Record<string, string> = { login: '/', project: '/project', select: '/properti', dashboard: '/dashboard' };
+const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> = {
+  '/': 'login', '/project': 'project', '/properti': 'select', '/dashboard': 'dashboard',
+};
+
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -1294,6 +1300,32 @@ export default function App() {
       return false;
     }
   };
+
+  // ===== Sinkron URL ↔ layar aktif =====
+  const bootedRef = useRef(false);
+  useEffect(() => {
+    const path = VIEW_PATHS[viewState] ?? '/';
+    if (window.location.pathname === path) { bootedRef.current = true; return; }
+    if (!bootedRef.current) {
+      // ganti URL sekali saat aplikasi menyala — riwayat tak menumpuk dengan pengganti
+      window.history.replaceState(null, '', path);
+      bootedRef.current = true;
+    } else {
+      window.history.pushState(null, '', path);
+    }
+  }, [viewState]);
+
+  // tombol Back/Forward peramban → layar disesuaikan ke URL tujuan
+  useEffect(() => {
+    const onPop = () => {
+      const target = PATH_VIEWS[window.location.pathname] ?? 'login';
+      viewStateRef.current = target;
+      setViewState(target);
+      // landing ('login') saat ada user akan disalurkan efek pengaman ke gerbang
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // PENGAMAN: selama user terdeteksi, layar login/landing TIDAK boleh tampil —
   // langsung buka gerbang project; restore di bawah akan menariknya ke dashboard.
