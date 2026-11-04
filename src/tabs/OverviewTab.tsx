@@ -16,6 +16,9 @@ type Props = {
     totalSessionsPrev?: number;
     sesiHarian?: { date: string; sessions: number }[];
     sesiHarianPrev?: { date: string; sessions: number }[];
+    topBrowsers?: OvRow[];
+    topOss?: OvRow[];
+    topDevices?: OvRow[];
   };
   note: string | null;
   startDate: string;
@@ -30,7 +33,7 @@ type Props = {
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 
-function Panel({ title, icon: Icon, children, hint }: { title: string; icon: any; children: React.ReactNode; hint?: React.ReactNode }) {
+function Panel({ title, icon: Icon, children, hint }:{ title: string; icon: any; children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
@@ -349,6 +352,37 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                 />
               )}
             </Panel>
+          </div>
+
+          {/* ===== Browser / OS / Device — metrik: sesi ===== */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {([
+              { title: 'Browser', icon: Globe, rows: data.topBrowsers || [] },
+              { title: 'Operating System', icon: BarChart3, rows: data.topOss || [] },
+              { title: 'Device Category', icon: Users, rows: data.topDevices || [] },
+            ] as const).map((pnl) => (
+              <div key={pnl.title}>
+              <Panel title={pnl.title} icon={pnl.icon}>
+                {pnl.rows.length === 0 ? (
+                  <Empty msg="Belum ada data (perlu property GA4 terpilih)." />
+                ) : (
+                  <SortableTable
+                    maxH="max-h-[430px]"
+                    cols={[
+                      { id: 'key', label: pnl.title },
+                      { id: 'sessions', label: 'Sesi', align: 'right' },
+                    ]}
+                    rows={pnl.rows}
+                    cell={(rw, col) =>
+                      col === 'key'
+                        ? <span className="text-gray-700 block truncate" title={rw.key}>{rw.key || '(tidak diketahui)'}</span>
+                        : <span className="font-bold text-gray-900">{fmtNum(rw.sessions)}</span>
+                    }
+                  />
+                )}
+              </Panel>
+              </div>
+            ))}
           </div>
         </>
       )}

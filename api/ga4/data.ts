@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ===== Mode OVERVIEW (tab Overview): sumber trafik & kota pengunjung =====
     if (String(action || "") === "overview") {
       const range = { startDate: startDate as string, endDate: endDate as string };
-      const [srcRes, cityRes, totRes, dailyRes] = await Promise.all([
+      const [srcRes, cityRes, totRes, dailyRes, browserRes, osRes, deviceRes] = await Promise.all([
         analyticsdata.properties.runReport({
           property: `properties/${propertyId}`,
           requestBody: {
@@ -62,6 +62,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             metrics: [{ name: "sessions" }],
           },
         }),
+        // browser, sistem operasi, kategori device — semua metrik: sesi
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            dimensions: [{ name: "browser" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "100",
+          },
+        }),
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            dimensions: [{ name: "operatingSystem" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "100",
+          },
+        }),
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            dimensions: [{ name: "deviceCategory" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "100",
+          },
+        }),
       ]);
       const totalSessions = Number(totRes.data.rows?.[0]?.metricValues?.[0]?.value || 0);
       // deret sesi harian — bahan diagram batang kartu "Sesi"
@@ -83,7 +114,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const medium = r.dimensionValues?.[1]?.value || "";
           return { source, medium, key: `${source} / ${medium}`, sessions: Number(r.metricValues?.[0]?.value || 0) };
         });
-      return res.status(200).json({ topSources: packSource(srcRes.data.rows), topCities: pack(cityRes.data.rows), totalSessions, sesiHarian });
+      return res.status(200).json({
+        topSources: packSource(srcRes.data.rows),
+        topCities: pack(cityRes.data.rows),
+        topBrowsers: pack(browserRes.data.rows),
+        topOss: pack(osRes.data.rows),
+        topDevices: pack(deviceRes.data.rows),
+        totalSessions,
+        sesiHarian,
+      });
     }
     const response = await analyticsdata.properties.runReport({
       property: `properties/${propertyId}`,

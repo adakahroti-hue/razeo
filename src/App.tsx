@@ -1330,6 +1330,9 @@ export default function App() {
       let totalSessionsPrev = 0;
       let sesiHarian: any[] = [];
       let sesiHarianPrev: any[] = [];
+      let topBrowsers: any[] = [];
+      let topOss: any[] = [];
+      let topDevices: any[] = [];
       let ga4Note: string | null = null;
       const pid = selectedGa4Property?.split('/').pop();
       if (pid) {
@@ -1339,6 +1342,9 @@ export default function App() {
             const da = await a.json();
             topSources = da.topSources || [];
             topCities = da.topCities || [];
+            topBrowsers = da.topBrowsers || [];
+            topOss = da.topOss || [];
+            topDevices = da.topDevices || [];
             totalSessions = da.totalSessions || 0;
             sesiHarian = da.sesiHarian || [];
             // sesi periode pembanding (kartu Sesi saat Compare + diagram pembanding tidak di bahas)
@@ -1359,7 +1365,7 @@ export default function App() {
       } else {
         ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
       }
-      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions, totalSessionsPrev, sesiHarian, sesiHarianPrev });
+      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions, totalSessionsPrev, sesiHarian, sesiHarianPrev, topBrowsers, topOss, topDevices });
       setOvNote(ga4Note);
     } catch (e: any) {
       setOvData(null);
@@ -2517,7 +2523,7 @@ export default function App() {
                   currentTab === 'tracker' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
                 )}
               >
-                Pelacak Aksi
+                Aksi
               </button>
             </nav>
           </div>
@@ -2562,35 +2568,40 @@ export default function App() {
                         />
                       </div>
                       <p className="text-[10px] text-gray-400">Rentang ini dipakai kartu statistik & tabel audit.</p>
+
+                      {/* Compare + refresh di dalam popup */}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => setIsComparing(!isComparing)}
+                          className={cn(
+                            "flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1.5",
+                            isComparing
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300"
+                          )}
+                        >
+                          <RefreshCw className={cn("w-3.5 h-3.5", isComparing && "animate-spin-once")} />
+                          {isComparing ? 'Comparing' : 'Compare'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowDatePop(false);
+                            if (!selectedSite) return;
+                            fetchData(selectedSite);
+                            if (currentTab === 'overview') loadOverview();
+                          }}
+                          disabled={isFetchingData}
+                          className="px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors disabled:opacity-50 text-gray-600"
+                          title="Terapkan & muat ulang data"
+                        >
+                          <RefreshCw className={cn("w-4 h-4", isFetchingData && "animate-spin")} />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <button
-                  onClick={() => setIsComparing(!isComparing)}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2",
-                    isComparing
-                      ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                      : "bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 shadow-sm"
-                  )}
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", isComparing && "animate-spin-once")} />
-                  {isComparing ? 'Comparing' : 'Compare'}
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (!selectedSite) return;
-                    fetchData(selectedSite);
-                    if (currentTab === 'overview') loadOverview();
-                  }}
-                  disabled={isFetchingData}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors disabled:opacity-50 text-gray-600 shadow-sm"
-                  title="Muat ulang data"
-                >
-                  <RefreshCw className={cn("w-4 h-4", isFetchingData && "animate-spin")} />
-                </button>
+                {/* Compare & refresh kini berada di dalam popup rentang tanggal */}
               </>
             )}
           </div>
