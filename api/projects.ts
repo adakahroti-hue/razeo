@@ -89,6 +89,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ deleted: true, id: info.projectId });
       }
 
+      // --- tab KONTEN: daftar konten project (siapa pun anggota boleh baca) ---
+      if (action === "content-list") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("content_items")
+          .select("*")
+          .eq("project_id", info.projectId)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return res.status(200).json({ items: data || [] });
+      }
+
+      // --- tab KONTEN: tambah baris ---
+      if (action === "content-add") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const row = {
+          project_id: info.projectId,
+          uid: user.uid,
+          kategori: body.kategori ? String(body.kategori).trim().slice(0, 80) : null,
+          target_keyword: body.target_keyword ? String(body.target_keyword).trim().slice(0, 200) : null,
+          judul: String(body.judul || "").trim().slice(0, 300),
+          tanggal_publikasi: body.tanggal_publikasi ? String(body.tanggal_publikasi).slice(0, 10) : null,
+          link_artikel: body.link_artikel ? String(body.link_artikel).trim().slice(0, 2048) : null,
+          peran: body.peran ? String(body.peran).trim().slice(0, 80) : null,
+          prioritas: ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang",
+        };
+        if (!row.judul) return res.status(400).json({ error: "Judul wajib diisi" });
+        const { data, error } = await supabase.from("content_items").insert(row).select().single();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel content_items belum ada — jalankan migrasi SQL 0004 di Supabase" });
+          throw error;
+        }
+        return res.status(201).json({ item: data });
+      }
+
+      // --- tab KONTEN: ubah baris ---
+      if (action === "content-update") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const patchRow: any = { updated_at: new Date().toISOString() };
+        if (body.kategori !== undefined) patchRow.kategori = body.kategori ? String(body.kategori).trim() : null;
+        if (body.target_keyword !== undefined) patchRow.target_keyword = body.target_keyword ? String(body.target_keyword).trim() : null;
+        if (body.judul !== undefined) patchRow.judul = String(body.judul || "").trim();
+        if (body.tanggal_publikasi !== undefined) patchRow.tanggal_publikasi = body.tanggal_publikasi || null;
+        if (body.link_artikel !== undefined) patchRow.link_artikel = body.link_artikel || null;
+        if (body.peran !== undefined) patchRow.peran = body.peran || null;
+        if (body.prioritas !== undefined) patchRow.prioritas = ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang";
+        if (patchRow.judul === "") return res.status(400).json({ error: "Judul tidak boleh kosong" });
+        const { data, error } = await supabase
+          .from("content_items")
+          .update(patchRow)
+          .eq("id", id)
+          .eq("project_id", info.projectId) // batasi ke project ini saja
+          .select()
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ item: data });
+      }
+
+      // --- tab KONTEN: hapus baris ---
+      if (action === "content-delete") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const { error, count } = await supabase
+          .from("content_items")
+          .delete({ count: "exact" })
+          .eq("id", id)
+          .eq("project_id", info.projectId);
+        if (error) throw error;
+        if (!count) return res.status(404).json({ error: "Baris tidak ditemukan" });
+        return res.status(200).json({ deleted: true });
+      }
+
       // --- ganti nama project (HANYA pemilik project) ---
       if (action === "rename") {
         const info = await requireProject(user.uid, req);

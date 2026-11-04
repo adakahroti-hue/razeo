@@ -48,6 +48,8 @@ import { cn } from './lib/utils';
 import LoginScreen from './screens/LoginScreen';
 import ProjectGate from './screens/ProjectGate';
 import PropertyScreen from './screens/PropertyScreen';
+import OverviewTab from './tabs/OverviewTab';
+import KontenTab, { ContentItem } from './tabs/KontenTab';
 import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase: login Google + identitas. Token login dibawa ke API server saat request.
@@ -146,7 +148,14 @@ export default function App() {
   const [expandedEnrichmentPage, setExpandedEnrichmentPage] = useState<string | null>(null);
   const [expandedZeroPage, setExpandedZeroPage] = useState<string | null>(null);
   const [expandedLhfPage, setExpandedLhfPage] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'tracker'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'overview' | 'dashboard' | 'konten' | 'tracker'>('overview');
+  // Konten (pendataan)
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  // Overview (ringkasan performa)
+  const [ovData, setOvData] = useState<any>(null);
+  const [ovLoading, setOvLoading] = useState(false);
+  const [ovNote, setOvNote] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [seoLogs, setSeoLogs] = useState<any[]>([]);
   const [isAddingLog, setIsAddingLog] = useState(false);
@@ -1294,6 +1303,87 @@ export default function App() {
     }
   };
 
+  // ===== Tab OVERVIEW: muat ringkasan GSC + GA4 (filter durasi pakai startDate/endDate) =====
+  const loadOverview = async (sd = startDate, ed = endDate) => {
+    if (!selectedSite) { setOvData(null); setOvNote('Pilih property Search Console dulu di halaman properti.'); return; }
+    setOvLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      if (!('Authorization' in headers)) { setOvNote('Sesi tidak terbaca — muat ulang halaman.'); return; }
+      setOvNote(null);
+      // GSC: ringkasan + top page + top query
+      const g = await fetch(`/api/gsc/data?action=overview&siteUrl=${encodeURIComponent(selectedSite)}&startDate=${sd}&endDate=${ed}`, { headers });
+      if (!g.ok) throw new Error((await g.json().catch(() => ({})))?.error || `GSC (${g.status})`);
+      const gsc = await g.json();
+      // GA4: sumber trafik + kota (opsional — property belum dipilih = kosong, bukan error)
+      let topSources: any[] = [];
+      let topCities: any[] = [];
+      let ga4Note: string | null = null;
+      const pid = selectedGa4Property?.split('/').pop();
+      if (pid) {
+        try {
+          const a = await fetch(`/api/ga4/data?action=overview&propertyId=${pid}&startDate=${sd}&endDate=${ed}`, { headers });
+          if (a.ok) {
+            const da = await a.json();
+            topSources = da.topSources || [];
+            topCities = da.topCities || [];
+          } else {
+            ga4Note = 'Sumber trafik/kota tidak bisa dimuat: ' + (a.status === 401 ? 'property GA4 belum terhubung' : `GA4 (${a.status})`);
+          }
+        } catch (e: any) { ga4Note = 'Sumber trafik/kota tidak bisa dimuat: ' + (e.message || 'gagal'); }
+      } else {
+        ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
+      }
+      setOvData({ gsc, topSources, topCities });
+      setOvNote(ga4Note);
+    } catch (e: any) {
+      setOvData(null);
+      setOvNote('Gagal memuat overview: ' + (e.message || 'kesalahan jaringan'));
+    } finally {
+      setOvLoading(false);
+    }
+  };
+
+  // ===== Tab KONTEN: daftar/tambah/ubah/hapus =====
+  const postContent = async (body: any, okExpected = 200) => {
+    const headers = await getAuthHeaders();
+    if (!('Authorization' in headers)) throw new Error('Sesi tidak terbaca');
+    const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify(body) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { const msg = d.error || `Gagal (${res.status})`; setError(msg); throw new Error(msg); }
+    return d;
+  };
+  const loadContent = async () => {
+    setContentLoading(true);
+    try {
+      const d = await postContent({ action: 'content-list' });
+      setContentItems(d.items || []);
+    } catch { /* pesan sudah lewat postContent */ }
+    finally { setContentLoading(false); }
+  };
+  const addContent = async (row: any) => {
+    try { await postContent({ action: 'content-add', ...row }, 201); await loadContent(); return true; } catch { return false; }
+  };
+  const updateContent = async (id: string, patch: any) => {
+    try { await postContent({ action: 'content-update', id, ...patch }); await loadContent(); return true; } catch { return false; }
+  };
+  const deleteContent = async (id: string) => {
+    try { await postContent({ action: 'content-delete', id }); await loadContent(); return true; } catch { return false; }
+  };
+
+  // muat data ketika masuk dashboard (project tersambung) + saat tab dibuka
+  useEffect(() => {
+    if (viewState === 'dashboard' && (currentTab === 'overview' || currentTab === 'dashboard')) {
+      if (currentTab === 'overview') loadOverview();
+      else {
+        fetchSites();
+        if (selectedSite && data.length === 0) fetchData(selectedSite); // isi data dashboard kalau belum ada
+      }
+    }
+    if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewState, currentTab, activeProjectId]);
+
   // ===== Sinkron URL ↔ layar aktif =====
   const bootedRef = useRef(false);
   useEffect(() => {
@@ -2367,6 +2457,15 @@ export default function App() {
 
             <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shrink-0">
               <button
+                onClick={() => setCurrentTab('overview')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                  currentTab === 'overview' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                Overview
+              </button>
+              <button
                 onClick={() => setCurrentTab('dashboard')}
                 className={cn(
                   "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
@@ -2383,6 +2482,15 @@ export default function App() {
                 )}
               >
                 Pelacak Aksi
+              </button>
+              <button
+                onClick={() => setCurrentTab('konten')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                  currentTab === 'konten' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                Konten
               </button>
             </nav>
           </div>
@@ -2460,7 +2568,39 @@ export default function App() {
 
       <main className="max-w-[1600px] mx-auto p-6">
         <AnimatePresence mode="wait">
-          {currentTab === 'dashboard' ? (
+          {currentTab === 'overview' && (
+            <div key="overview">
+              <OverviewTab
+                loading={ovLoading}
+                data={ovData}
+                note={ovNote}
+                startDate={startDate}
+                endDate={endDate}
+                onPreset={(days) => {
+                  // durasi baru: mundur N hari dari hari ini
+                  const now = new Date();
+                  const from = new Date(now.getTime() - (days - 1) * 24 * 3600 * 1000);
+                  const toIso = (d: Date) => d.toISOString().split('T')[0];
+                  setStartDate(toIso(from));
+                  setEndDate(toIso(now));
+                  loadOverview(toIso(from), toIso(now));
+                }}
+                onRefresh={() => loadOverview()}
+              />
+            </div>
+          )}
+          {currentTab === 'konten' && (
+            <div key="konten">
+              <KontenTab
+                loading={contentLoading}
+                items={contentItems}
+                onAdd={addContent}
+                onUpdate={updateContent}
+                onDelete={deleteContent}
+              />
+            </div>
+          )}
+          {currentTab === 'overview' || currentTab === 'konten' ? null : currentTab === 'dashboard' ? (
             <motion.div 
               key="dashboard"
               initial={{ opacity: 0, y: 10 }}

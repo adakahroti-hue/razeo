@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   }
 
-  const { propertyId, startDate, endDate } = req.query;
+  const { propertyId, startDate, endDate, action } = req.query;
   if (!propertyId) return res.status(400).json({ error: "propertyId is required" });
 
   try {
@@ -22,6 +22,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!client) return res.status(401).json({ error: "Token koneksi tidak valid" });
 
     const analyticsdata = google.analyticsdata({ version: "v1beta", auth: client });
+
+    // ===== Mode OVERVIEW (tab Overview): sumber trafik & kota pengunjung =====
+    if (String(action || "") === "overview") {
+      const range = { startDate: startDate as string, endDate: endDate as string };
+      const [srcRes, cityRes] = await Promise.all([
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "10",
+          },
+        }),
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            dimensions: [{ name: "city" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "10",
+          },
+        }),
+      ]);
+      const pack = (rows: any[]) =>
+        (rows || []).map((r: any) => ({
+          key: (r.dimensionValues || []).map((d: any) => d.value).filter(Boolean).join(" / "), // "Google / organic"
+          sessions: Number(r.metricValues?.[0]?.value || 0),
+        }));
+      return res.status(200).json({ topSources: pack(srcRes.data.rows), topCities: pack(cityRes.data.rows) });
+    }
     const response = await analyticsdata.properties.runReport({
       property: `properties/${propertyId}`,
       requestBody: {
