@@ -1315,6 +1315,14 @@ export default function App() {
       const g = await fetch(`/api/gsc/data?action=overview&siteUrl=${encodeURIComponent(selectedSite)}&startDate=${sd}&endDate=${ed}`, { headers });
       if (!g.ok) throw new Error((await g.json().catch(() => ({})))?.error || `GSC (${g.status})`);
       const gsc = await g.json();
+      // ringkasan periode pembanding (tampil saat tombol Compare aktif)
+      let gscPrev: any = null;
+      if (isComparing) {
+        try {
+          const cp = await fetch(`/api/gsc/data?action=overview&siteUrl=${encodeURIComponent(selectedSite)}&startDate=${compareStartDate}&endDate=${compareEndDate}`, { headers });
+          if (cp.ok) gscPrev = (await cp.json()) as any;
+        } catch { /* pembanding opsional — abaikan bila gagal */ }
+      }
       // GA4: sumber trafik + kota (opsional — property belum dipilih = kosong, bukan error)
       let topSources: any[] = [];
       let topCities: any[] = [];
@@ -1334,7 +1342,7 @@ export default function App() {
       } else {
         ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
       }
-      setOvData({ gsc, topSources, topCities });
+      setOvData({ gsc, gscPrev, topSources, topCities });
       setOvNote(ga4Note);
     } catch (e: any) {
       setOvData(null);
@@ -1374,6 +1382,7 @@ export default function App() {
   // muat data ketika masuk dashboard (project tersambung) + saat tab dibuka
   useEffect(() => {
     if (viewState === 'dashboard' && (currentTab === 'overview' || currentTab === 'dashboard')) {
+      /* deps ditambah isComparing di penutup efek */
       if (currentTab === 'overview') loadOverview();
       else {
         fetchSites();
@@ -1382,7 +1391,7 @@ export default function App() {
     }
     if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewState, currentTab, activeProjectId]);
+  }, [viewState, currentTab, activeProjectId, isComparing]);
 
   // ===== Sinkron URL ↔ layar aktif =====
   const bootedRef = useRef(false);
@@ -1580,9 +1589,10 @@ export default function App() {
 
   useEffect(() => {
     if (selectedSite && viewState === 'dashboard') {
-      fetchData(selectedSite);
+      if (currentTab === 'dashboard') fetchData(selectedSite);
+      if (currentTab === 'overview') loadOverview();
     }
-  }, [startDate, endDate, compareStartDate, compareEndDate, isComparing]);
+  }, [startDate, endDate, compareStartDate, compareEndDate, isComparing, currentTab, viewState, selectedSite]);
 
   if (isLoading) {
     return (
@@ -2472,16 +2482,7 @@ export default function App() {
                   currentTab === 'dashboard' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
                 )}
               >
-                Performa
-              </button>
-              <button
-                onClick={() => setCurrentTab('tracker')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'tracker' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Pelacak Aksi
+                Audit
               </button>
               <button
                 onClick={() => setCurrentTab('konten')}
@@ -2492,11 +2493,20 @@ export default function App() {
               >
                 Konten
               </button>
+              <button
+                onClick={() => setCurrentTab('tracker')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                  currentTab === 'tracker' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                Pelacak Aksi
+              </button>
             </nav>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {currentTab === 'dashboard' && (
+            {(currentTab === 'dashboard' || currentTab === 'overview') && (
               <>
                 {/* Pill rentang tanggal */}
                 <div className="relative hidden md:block">
@@ -2553,7 +2563,11 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={() => selectedSite && fetchData(selectedSite)}
+                  onClick={() => {
+                    if (!selectedSite) return;
+                    fetchData(selectedSite);
+                    if (currentTab === 'overview') loadOverview();
+                  }}
                   disabled={isFetchingData}
                   className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors disabled:opacity-50 text-gray-600 shadow-sm"
                   title="Muat ulang data"
@@ -2576,15 +2590,10 @@ export default function App() {
                 note={ovNote}
                 startDate={startDate}
                 endDate={endDate}
-                onPreset={(days) => {
-                  // durasi baru: mundur N hari dari hari ini
-                  const now = new Date();
-                  const from = new Date(now.getTime() - (days - 1) * 24 * 3600 * 1000);
-                  const toIso = (d: Date) => d.toISOString().split('T')[0];
-                  setStartDate(toIso(from));
-                  setEndDate(toIso(now));
-                  loadOverview(toIso(from), toIso(now));
-                }}
+                compareStartDate={compareStartDate}
+                compareEndDate={compareEndDate}
+                isComparing={isComparing}
+                renderChange={renderChange}
                 onRefresh={() => loadOverview()}
               />
             </div>
@@ -2615,103 +2624,11 @@ export default function App() {
                 </div>
               )}
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  {
-                    label: 'Total clicks',
-                    value: totalClicks >= 1000 ? `${(totalClicks/1000).toFixed(2)}K` : totalClicks.toLocaleString(),
-                    prevValue: compClicks >= 1000 ? `${(compClicks/1000).toFixed(2)}K` : compClicks.toLocaleString(),
-                    icon: MousePointer2,
-                    circle: 'bg-blue-50', color: 'text-blue-500', spark: 'bg-blue-400',
-                    sparkKey: 'clicks',
-                    currentRaw: totalClicks, prevRaw: compClicks
-                  },
-                  {
-                    label: 'Total impressions',
-                    value: totalImpressions >= 1000 ? `${(totalImpressions/1000).toFixed(0)}K` : totalImpressions.toLocaleString(),
-                    prevValue: compImpressions >= 1000 ? `${(compImpressions/1000).toFixed(0)}K` : compImpressions.toLocaleString(),
-                    icon: Eye,
-                    circle: 'bg-violet-50', color: 'text-violet-500', spark: 'bg-violet-400',
-                    sparkKey: 'impressions',
-                    currentRaw: totalImpressions, prevRaw: compImpressions
-                  },
-                  {
-                    label: 'Average CTR',
-                    value: `${avgCtr.toFixed(1)}%`,
-                    prevValue: `${compCtr.toFixed(1)}%`,
-                    icon: TrendingUp,
-                    circle: 'bg-teal-50', color: 'text-teal-500', spark: 'bg-teal-400',
-                    sparkKey: 'ctr',
-                    currentRaw: avgCtr, prevRaw: compCtr
-                  },
-                  {
-                    label: 'Average position',
-                    value: avgPos.toFixed(1),
-                    prevValue: compPos.toFixed(1),
-                    icon: BarChart3,
-                    circle: 'bg-amber-50', color: 'text-amber-500', spark: 'bg-amber-400',
-                    sparkKey: 'position',
-                    currentRaw: avgPos, prevRaw: compPos,
-                    inverse: true
-                  }
-                ].map((stat, i) => {
-                  const sparkRows = Array.isArray(timeSeries) ? timeSeries.slice(-14) : [];
-                  const sparkVals = sparkRows.map((r: any) => Number(r?.[stat.sparkKey]) || 0);
-                  const sparkMax = Math.max(1, ...sparkVals);
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, scale: 0.97 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="p-5 rounded-xl shadow-sm border border-gray-200 bg-white"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className={cn("w-8 h-8 rounded-lg flex items-center justify-center", stat.circle)}>
-                            <stat.icon className={cn("w-4 h-4", stat.color)} />
-                          </span>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">{stat.label}</span>
-                        </div>
-                        {isComparing && stat.currentRaw !== undefined && renderChange(stat.currentRaw, stat.prevRaw, stat.inverse)}
-                      </div>
-                      <div className="flex items-end justify-between gap-3">
-                        <div className="min-w-0">
-                          {isComparing && (
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <span className="text-sm font-bold text-gray-400">{stat.prevValue}</span>
-                              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">periode sebelumnya</span>
-                            </div>
-                          )}
-                          <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
-                          <div className="text-[10px] text-gray-400 font-medium mt-2">
-                            {fmtDate(isMainRecent ? startDate : compareStartDate)} - {fmtDate(isMainRecent ? endDate : compareEndDate)}
-                          </div>
-                        </div>
-                        {sparkVals.length > 0 && (
-                          <div className="flex items-end gap-[3px] h-9">
-                            {sparkVals.map((v: number, k: number) => (
-                              <div
-                                key={k}
-                                className={cn("w-1.5 rounded-sm", stat.spark, "opacity-70")}
-                                style={{ height: `${Math.max(10, (v / sparkMax) * 100)}%` }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
               <div className="flex flex-col lg:flex-row gap-6 items-start">
                 {/* ===== SIDEBAR KIRI: kategori modul + info project/pengguna ===== */}
                 <aside className="w-full lg:w-64 shrink-0 bg-white border border-gray-200 rounded-2xl p-4 lg:sticky lg:top-24">
                   <div className="flex items-center justify-between px-1 mb-3">
                     <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Categories</span>
-                    <span className="text-[11px] font-black text-emerald-600">{AUDIT_TABS.length} Modul</span>
                   </div>
 
                   <div className="space-y-1">

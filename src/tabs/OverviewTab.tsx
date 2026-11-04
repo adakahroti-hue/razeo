@@ -8,23 +8,23 @@ type OvRow = { key: string; clicks?: number; impressions?: number; ctr?: number;
 type Props = {
   loading: boolean;
   data: null | {
-    gsc: { summary: any; topPages: OvRow[]; topQueries: OvRow[] };
+    gsc: { summary: any; topPages: OvRow[]; topQueries: OvRow[]; timeSeries?: any[] };
+    gscPrev: any;
     topSources: OvRow[];
     topCities: OvRow[];
   };
   note: string | null;
   startDate: string;
   endDate: string;
-  onPreset: (days: number) => void;
+  compareStartDate: string;
+  compareEndDate: string;
+  isComparing: boolean;
+  renderChange: (current: number, previous: number, inverse?: boolean) => React.ReactNode;
   onRefresh: () => void;
 };
 
-const PRESETS = [
-  { days: 7, label: '7 hari' },
-  { days: 14, label: '14 hari' },
-  { days: 30, label: '30 hari' },
-  { days: 90, label: '90 hari' },
-];
+const fmtDate = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 
 function Panel({ title, icon: Icon, children, hint }: { title: string; icon: any; children: React.ReactNode; hint?: string }) {
   return (
@@ -45,54 +45,35 @@ function Empty({ msg }: { msg: string }) {
   return <div className="p-8 text-center text-sm text-gray-400">{msg}</div>;
 }
 
-export default function OverviewTab({ loading, data, note, startDate, endDate, onPreset, onRefresh }: Props) {
+export default function OverviewTab({ loading, data, note, startDate, endDate, compareStartDate, compareEndDate, isComparing, renderChange, onRefresh }: Props) {
   const s = data?.gsc.summary;
+  const cmp = data?.gscPrev?.summary;
   const fmtNum = (n: number | undefined | null) =>
     (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}K` : String(n ?? 0);
-  const dateLabel = `${startDate} → ${endDate}`;
 
-  const avgCards = s
+  // sparkline dari deret harian (14 titik terakhir)
+  const timeSeries = data?.gsc?.timeSeries || [];
+  const spark = (key: string) => {
+    const vals = timeSeries.slice(-14).map((r: any) => Number(r?.[key]) || 0);
+    const max = Math.max(1, ...vals);
+    return { vals, max };
+  };
+
+  // 4 kartu — gaya identik tab Audit (nilai besar, sparkline, badge compare)
+  const stats = s
     ? [
-        { label: 'Rata-rata klik/hari', value: fmtNum(s.avgClicks), icon: MousePointer2, circle: 'bg-blue-50', color: 'text-blue-500' },
-        { label: 'Rata-rata impresi/hari', value: fmtNum(s.avgImpressions), icon: Eye, circle: 'bg-violet-50', color: 'text-violet-500' },
-        { label: `CTR rata-rata (${s.days} hari)`, value: `${((s.ctr ?? 0) * 100).toFixed(2)}%`, icon: Target, circle: 'bg-teal-50', color: 'text-teal-500' },
-        { label: 'Rata-rata posisi', value: (s.position ?? 0).toFixed(1), icon: BarChart3, circle: 'bg-amber-50', color: 'text-amber-500' },
+        { label: 'Total clicks', value: fmtNum(s.clicks), prevValue: cmp ? fmtNum(cmp.clicks) : '—', icon: MousePointer2, circle: 'bg-blue-50', color: 'text-blue-500', sparkCls: 'bg-blue-400', key: 'clicks', cur: s.clicks, prev: cmp?.clicks ?? 0 },
+        { label: 'Total impressions', value: fmtNum(s.impressions), prevValue: cmp ? fmtNum(cmp.impressions) : '—', icon: Eye, circle: 'bg-violet-50', color: 'text-violet-500', sparkCls: 'bg-violet-400', key: 'impressions', cur: s.impressions, prev: cmp?.impressions ?? 0 },
+        { label: 'Average CTR', value: `${((s.ctr ?? 0) * 100).toFixed(1)}%`, prevValue: cmp ? `${((cmp.ctr ?? 0) * 100).toFixed(1)}%` : '—', icon: Target, circle: 'bg-teal-50', color: 'text-teal-500', sparkCls: 'bg-teal-400', key: 'ctr', cur: (s.ctr ?? 0) * 100, prev: (cmp?.ctr ?? 0) * 100 },
+        { label: 'Average position', value: (s.position ?? 0).toFixed(1), prevValue: cmp ? (cmp.position ?? 0).toFixed(1) : '—', icon: BarChart3, circle: 'bg-amber-50', color: 'text-amber-500', sparkCls: 'bg-amber-400', key: 'position', cur: s.position ?? 0, prev: cmp?.position ?? 0, inverse: true },
       ]
     : [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      {/* ===== Filter waktu durasi ===== */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Durasi</span>
-          {PRESETS.map((p) => (
-            <button
-              key={p.days}
-              onClick={() => onPreset(p.days)}
-              className="px-3.5 py-2 rounded-lg text-xs font-bold border transition-colors hover:border-emerald-300 hover:text-emerald-700 text-gray-600"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-gray-500">{dateLabel}</span>
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
-            {loading ? 'Memuat…' : 'Terapkan'}
-          </button>
-        </div>
-      </div>
-
       {note && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">{note}</div>
       )}
-
       {loading && !data ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[0, 1, 2, 3].map((i) => (
@@ -105,19 +86,55 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, o
         </div>
       ) : (
         <>
-          {/* ===== 4 kartu rata-rata ===== */}
+          {/* ===== 4 KARTU — persis gaya tab Audit ===== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {avgCards.map((c, i) => (
-              <div key={i} className="p-5 rounded-xl bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center', c.circle)}>
-                    <c.icon className={cn('w-4 h-4', c.color)} />
-                  </span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">{c.label}</span>
-                </div>
-                <div className="text-3xl font-extrabold text-gray-900 leading-none">{c.value}</div>
-              </div>
-            ))}
+            {stats.map((stat, i) => {
+              const { vals, max } = spark(stat.key);
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="p-5 rounded-xl shadow-sm border border-gray-200 bg-white"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className={cn("w-8 h-8 rounded-lg flex items-center justify-center", stat.circle)}>
+                        <stat.icon className={cn("w-4 h-4", stat.color)} />
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">{stat.label}</span>
+                    </div>
+                    {isComparing && renderChange(stat.cur, stat.prev, stat.inverse)}
+                  </div>
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      {isComparing && (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="text-sm font-bold text-gray-400">{stat.prevValue}</span>
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">periode sebelumnya</span>
+                        </div>
+                      )}
+                      <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
+                      <div className="text-[10px] text-gray-400 font-medium mt-2">
+                        {fmtDate(isComparing ? compareStartDate : startDate)} - {fmtDate(isComparing ? compareEndDate : endDate)}
+                      </div>
+                    </div>
+                    {vals.length > 0 && (
+                      <div className="flex items-end gap-[3px] h-9">
+                        {vals.map((v: number, k: number) => (
+                          <div
+                            key={k}
+                            className={cn("w-1.5 rounded-sm", stat.sparkCls, "opacity-70")}
+                            style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* ===== Top artikel + top query ===== */}

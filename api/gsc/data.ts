@@ -55,6 +55,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
         topPages: fmt(topPagesRes.data.rows),
         topQueries: fmt(topQueriesRes.data.rows),
+        timeSeries: dailyRows.map((r: any) => ({
+          date: r.keys?.[0] ?? "",
+          clicks: r.clicks ?? 0,
+          impressions: r.impressions ?? 0,
+          ctr: r.ctr ?? 0,
+          position: r.position ?? 0,
+        })),
       });
     }
 
