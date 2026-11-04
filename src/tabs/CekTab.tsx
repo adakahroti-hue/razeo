@@ -30,6 +30,8 @@ const KINDS: { id: Kind; label: string; icon: any }[] = [
 ];
 
 const div = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${d}`);
+// selisih dalam satuan posisi/CTR: selalu 1 angka di belakang koma
+const div1 = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(1)}`);
 const pct = (d: number | undefined | null) =>
   d == null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(2)}%`;
 // selisih %; posisi turun = bagus
@@ -44,7 +46,7 @@ const allUrls = (a: Pair[], b: Pair[]) => {
   return [...s];
 };
 
-function DeltaBadge({ value, inverse = false, raw }: { value: number | null; inverse?: boolean; raw?: string }) {
+function DeltaBadge({ value, inverse = false, raw, digits = 2 }: { value: number | null; inverse?: boolean; raw?: string; digits?: number }) {
   if (raw) return <span className="text-xs font-bold text-gray-600">{raw}</span>;
   if (value == null) return <span className="text-xs font-bold text-gray-400">—</span>;
   const isUp = value > 0;
@@ -56,7 +58,7 @@ function DeltaBadge({ value, inverse = false, raw }: { value: number | null; inv
       'inline-flex items-center gap-0.5 text-xs font-black px-2 py-0.5 rounded-md',
       good ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
     )}>
-      {isUp ? '↑' : '↓'} {Math.abs(value).toFixed(2)}%
+      {isUp ? '↑' : '↓'} {Math.abs(value).toFixed(digits)}%
     </span>
   );
 }
@@ -151,7 +153,8 @@ export default function CekTab({ loading, data, startDate, endDate, compareStart
     if (id === 'url') return <span className="text-gray-700 block truncate" title={r.url}>{r.url}</span>;
     if (id === 'sel') {
       if (kind === 'impressi') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
-      if (kind === 'posisi') return <span className={cn('font-bold', r.sel < 0 ? 'text-emerald-700' : r.sel > 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
+      if (kind === 'posisi') return <span className={cn('font-bold', r.sel < 0 ? 'text-emerald-700' : r.sel > 0 ? 'text-red-600' : 'text-gray-500')}>{div1(r.sel)}</span>;
+      if (kind === 'klik') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{pct(r.sel)}</span>;
       return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
     }
     if (id === 'delta') {
@@ -159,8 +162,9 @@ export default function CekTab({ loading, data, startDate, endDate, compareStart
       if (kind === 'posisi') return <DeltaBadge value={r.delta} inverse />;
       return <DeltaBadge value={r.delta} />;
     }
-    if (id === 'selPos') return <span className="font-bold text-gray-600">{div(r.selPos)}</span>; // impresi: selisih posisi
+    if (id === 'selPos') return <span className="font-bold text-gray-600">{div1(r.selPos)}</span>; // impresi: selisih posisi
     if (id === 'selImp') return <span className="font-bold text-gray-600">{div(r.selImp)}</span>; // posisi: selisih impresi
+    if (kind === 'posisi') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(1)}</span>; // posisi & selisih: 1 angka di belakang koma
     if (kind === 'klik') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(2)}%</span>;
     if (id === 'prev' || id === 'cur') return <span className="font-bold text-gray-900">{id === 'cur' ? r.cur : r.prev}</span>;
     return <span>{String(r[id])}</span>;
