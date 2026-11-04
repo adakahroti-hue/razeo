@@ -1326,6 +1326,7 @@ export default function App() {
       // GA4: sumber trafik + kota (opsional — property belum dipilih = kosong, bukan error)
       let topSources: any[] = [];
       let topCities: any[] = [];
+      let totalSessions = 0;
       let ga4Note: string | null = null;
       const pid = selectedGa4Property?.split('/').pop();
       if (pid) {
@@ -1335,6 +1336,7 @@ export default function App() {
             const da = await a.json();
             topSources = da.topSources || [];
             topCities = da.topCities || [];
+            totalSessions = da.totalSessions || 0;
           } else {
             ga4Note = 'Sumber trafik/kota tidak bisa dimuat: ' + (a.status === 401 ? 'property GA4 belum terhubung' : `GA4 (${a.status})`);
           }
@@ -1342,7 +1344,7 @@ export default function App() {
       } else {
         ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
       }
-      setOvData({ gsc, gscPrev, topSources, topCities });
+      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions });
       setOvNote(ga4Note);
     } catch (e: any) {
       setOvData(null);
@@ -2462,7 +2464,7 @@ export default function App() {
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
-              <span className="text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Pro</span>
+
             </div>
 
             <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shrink-0">
@@ -4271,7 +4273,6 @@ export default function App() {
           </motion.div>
         </div>
       )}
-        <p>© 2026 SEO Content Audit Ultimate. Built with Google Search Console API.</p>
       </footer>
     </div>
   );

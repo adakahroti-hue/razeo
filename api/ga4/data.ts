@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ===== Mode OVERVIEW (tab Overview): sumber trafik & kota pengunjung =====
     if (String(action || "") === "overview") {
       const range = { startDate: startDate as string, endDate: endDate as string };
-      const [srcRes, cityRes] = await Promise.all([
+      const [srcRes, cityRes, totRes] = await Promise.all([
         analyticsdata.properties.runReport({
           property: `properties/${propertyId}`,
           requestBody: {
@@ -47,13 +47,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             limit: "10",
           },
         }),
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [range],
+            metrics: [{ name: "sessions" }],
+          },
+        }),
       ]);
+      const totalSessions = Number(totRes.data.rows?.[0]?.metricValues?.[0]?.value || 0);
       const pack = (rows: any[]) =>
         (rows || []).map((r: any) => ({
           key: (r.dimensionValues || []).map((d: any) => d.value).filter(Boolean).join(" / "), // "Google / organic"
           sessions: Number(r.metricValues?.[0]?.value || 0),
         }));
-      return res.status(200).json({ topSources: pack(srcRes.data.rows), topCities: pack(cityRes.data.rows) });
+      return res.status(200).json({ topSources: pack(srcRes.data.rows), topCities: pack(cityRes.data.rows), totalSessions });
     }
     const response = await analyticsdata.properties.runReport({
       property: `properties/${propertyId}`,
