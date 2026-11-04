@@ -13,10 +13,6 @@ type Props = {
     sesi: { current: Pair[]; previous: Pair[] };
     scroll75: { current: Pair[]; previous: Pair[] };
   };
-  startDate: string;
-  endDate: string;
-  compareStartDate: string;
-  compareEndDate: string;
 };
 
 type Kind = 'impressi' | 'posisi' | 'klik' | 'sesi' | 'scroll';
@@ -63,7 +59,7 @@ function DeltaBadge({ value, inverse = false, raw, digits = 2 }: { value: number
   );
 }
 
-export default function CekTab({ loading, data, startDate, endDate, compareStartDate, compareEndDate }: Props) {
+export default function CekTab({ loading, data }: Props) {
   const [kind, setKind] = useState<Kind>('impressi');
   const [sort, setSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
 
@@ -80,13 +76,20 @@ export default function CekTab({ loading, data, startDate, endDate, compareStart
         const p: Partial<GscRow> = p2.get(url) || {};
         if (kind === 'impressi') {
           const sel = (c.impressions ?? 0) - (p.impressions ?? 0);
-          const selPos = (c.position ?? 0) - (p.position ?? 0);
+          // posisi 0 = TIDAK ADA posisi (tak tampil di indeks) → delta hanya
+          // dihitung kalau URL punya posisi di KEDUA periode (posisi 1 = tertinggi)
+          const pc = c.position && c.position > 0 ? c.position : null;
+          const pp = p.position && p.position > 0 ? p.position : null;
+          const selPos = pc != null && pp != null ? pc - pp : null;
           return { url, prev: p.impressions ?? 0, cur: c.impressions ?? 0, sel, delta: rel(c.impressions ?? 0, p.impressions ?? 0), selPos };
         }
         if (kind === 'posisi') {
-          const sel = (c.position ?? 0) - (p.position ?? 0);
+          // posisi 0 = tak ada posisi → null = tidak muncul di hasil pencarian
+          const pp = p.position && p.position > 0 ? p.position : null;
+          const pc = c.position && c.position > 0 ? c.position : null;
+          const sel = pp != null && pc != null ? pc - pp : null;
           const selImp = (c.impressions ?? 0) - (p.impressions ?? 0);
-          return { url, prev: p.position ?? 0, cur: c.position ?? 0, sel, delta: sel, selImp };
+          return { url, prev: pp, cur: pc, sel, delta: sel, selImp };
         }
         // klik → CTR dua periode
         const sel = ((c.ctr ?? 0) - (p.ctr ?? 0)) * 100;
@@ -164,7 +167,7 @@ export default function CekTab({ loading, data, startDate, endDate, compareStart
     }
     if (id === 'selPos') return <span className="font-bold text-gray-600">{div1(r.selPos)}</span>; // impresi: selisih posisi
     if (id === 'selImp') return <span className="font-bold text-gray-600">{div(r.selImp)}</span>; // posisi: selisih impresi
-    if (kind === 'posisi') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(1)}</span>; // posisi & selisih: 1 angka di belakang koma
+    if (kind === 'posisi') return <span className="font-bold text-gray-900">{r[id] == null ? '—' : Number(r[id]).toFixed(1)}</span>; // posisi 0 = tak ada posisi → tampil —
     if (kind === 'klik') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(2)}%</span>;
     if (id === 'prev' || id === 'cur') return <span className="font-bold text-gray-900">{id === 'cur' ? r.cur : r.prev}</span>;
     return <span>{String(r[id])}</span>;
@@ -172,16 +175,6 @@ export default function CekTab({ loading, data, startDate, endDate, compareStart
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* baris rentang */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Halaman ini membandingkan</span>
-          <span className="text-xs font-bold text-gray-700 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700">{startDate} → {endDate}</span>
-          <span className="text-[11px] text-gray-400">vs sebelumnya</span>
-          <span className="text-xs font-bold text-gray-700 px-2 py-1 rounded-md bg-gray-100 text-gray-600">{compareStartDate} → {compareEndDate}</span>
-        </div>
-      </div>
-
       {/* sub-tab jenis data */}
       <div className="flex items-center gap-2 flex-wrap">
         {KINDS.map((k) => (

@@ -2736,14 +2736,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {currentTab === 'cek' && (
             <div key="cek">
-              <CekTab
-                loading={cekLoading}
-                data={cekData}
-                startDate={startDate}
-                endDate={endDate}
-                compareStartDate={compareStartDate}
-                compareEndDate={compareEndDate}
-              />
+              <CekTab loading={cekLoading} data={cekData} />
             </div>
           )}
           {currentTab === 'overview' && (
@@ -4054,66 +4047,57 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* SEO Action Tracker Content */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Pelacak Aksi SEO</h2>
-                <p className="text-sm text-gray-500">Dokumentasikan dan lacak optimasi situs web Anda.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => {
-                    setSelectedAspects([]);
-                    setIsAddingLog(true);
-                  }}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  Input Baru
-                </button>
-                <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
-                  <button 
-                    onClick={exportLogsToCSV}
-                    className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
-                    title="Ekspor CSV"
-                  >
-                    <FileDown className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={exportLogsToPDF}
-                    className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
-                    title="Ekspor PDF"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
+            {/* Toolbar: cari, pemilih bulan, ekspor - rata kanan */}
+            <div className="flex items-center justify-end gap-3 flex-wrap">
+              <div className="relative w-full sm:w-72">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Cari log berdasarkan URL, query, atau catatan..."
                   value={logSearchQuery}
                   onChange={(e) => setLogSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <input 
-                    type="month" 
-                    value={logFilterMonth}
-                    onChange={(e) => setLogFilterMonth(e.target.value)}
-                    className="bg-transparent text-sm font-bold text-gray-700 focus:outline-none"
-                  />
-                </div>
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <input
+                  type="month"
+                  value={logFilterMonth}
+                  onChange={(e) => setLogFilterMonth(e.target.value)}
+                  className="bg-transparent text-sm font-bold text-gray-700 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                <button
+                  onClick={exportLogsToCSV}
+                  className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
+                  title="Ekspor CSV"
+                >
+                  <FileDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={exportLogsToPDF}
+                  className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
+                  title="Ekspor PDF"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
               </div>
             </div>
+
+            {/* Input Baru - tombol melayang kanan bawah */}
+            <button
+              onClick={() => {
+                setSelectedAspects([]);
+                setIsAddingLog(true);
+              }}
+              className="fixed bottom-10 right-10 z-[70] bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/30"
+            >
+              <Plus className="w-4 h-4" />
+              Input Baru
+            </button>
+
 
             {/* Logs Table */}
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
