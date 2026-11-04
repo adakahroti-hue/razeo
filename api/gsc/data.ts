@@ -30,8 +30,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const [summary, daily, topPagesRes, topQueriesRes] = await Promise.all([
         searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: base }),
         searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: { ...base, dimensions: ["date"] } }),
-        searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: { ...base, dimensions: ["page"], rowLimit: 10 } }),
-        searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: { ...base, dimensions: ["query"], rowLimit: 10 } }),
+        searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: { ...base, dimensions: ["page"], rowLimit: 100 } }),
+        searchconsole.searchanalytics.query({ siteUrl: siteUrl as string, requestBody: { ...base, dimensions: ["query"], rowLimit: 100 } }),
       ]);
       const s = summary.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 };
       const dailyRows = daily.data.rows || [];

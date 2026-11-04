@@ -28,7 +28,7 @@ type Props = {
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 
-function Panel({ title, icon: Icon, children, hint }: { title: string; icon: any; children: React.ReactNode; hint?: string }) {
+function Panel({ title, icon: Icon, children, hint }: { title: string; icon: any; children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
@@ -83,9 +83,10 @@ function SortableTable({
   return (
     <table className="w-full text-left text-sm">
       <thead>
-        <tr className="border-b border-gray-100 grid grid-cols-[3rem_1fr_7rem_7rem_6rem] md:grid-cols-[3rem_1.6fr_7rem_7rem_6rem] items-center">
+        <tr className="border-b border-gray-100 grid grid-cols-[2.5rem_1fr_6rem_6rem_5rem] md:grid-cols-[2.5rem_1fr_7rem_7rem_6rem] items-center">
+          <th className="px-4 py-2.5 text-[11px] uppercase font-black text-gray-400" title="Nomor urut">No.</th>
           {cols.map((c) => (
-            <th key={c.id} className={cn('px-5 py-3', c.align === 'right' ? 'text-right' : 'text-left')}>
+            <th key={c.id} className={cn('px-3 py-2.5 text-[11px] uppercase font-black text-gray-400', c.align === 'right' ? 'text-right' : 'text-left')}>
               <button
                 onClick={() => click(c.id)}
                 className={cn(
@@ -106,10 +107,10 @@ function SortableTable({
       </thead>
       <tbody className={cn("divide-y divide-gray-50 block overflow-y-auto ", maxH)}>
         {sorted.map((r, i) => (
-          <tr key={`${r.key}-${i}`} className="hover:bg-gray-50/60 grid grid-cols-[3rem_1fr_7rem_7rem_6rem] md:grid-cols-[3rem_1.6fr_7rem_7rem_6rem] items-center">
-            <td className="px-4 py-3 text-xs font-black text-gray-400 tabular-nums">{i + 1}</td>
+          <tr key={`${r.key}-${i}`} className="hover:bg-gray-50/60 grid grid-cols-[2.5rem_1fr_6rem_6rem_5rem] md:grid-cols-[2.5rem_1fr_7rem_7rem_6rem] items-center">
+            <td className="px-4 py-2.5 text-xs font-black text-gray-400 tabular-nums">{i + 1}</td>
             {cols.map((c) => (
-              <td key={c.id} className={cn('px-5 py-3 max-w-[300px]', c.align === 'right' ? 'text-right' : '')}>
+              <td key={c.id} className={cn('px-3 py-2.5 min-w-0', c.align === 'right' ? 'text-right' : '')}>
                 {cell(r, c.id)}
               </td>
             ))}
@@ -138,11 +139,11 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
   // ===== Kartu SKOR — urutan: Average position, Total impressions, Total clicks, Average CTR, Total sessions =====
   const stats = s
     ? [
-        { label: 'Average position', value: (s.position ?? 0).toFixed(1), prevValue: cmp ? (cmp.position ?? 0).toFixed(1) : '—', icon: BarChart3, circle: 'bg-amber-50', color: 'text-amber-500', sparkCls: 'bg-amber-400', key: 'position', cur: s.position ?? 0, prev: cmp?.position ?? 0, inverse: true },
-        { label: 'Total impressions', value: fmtNum(s.impressions), prevValue: cmp ? fmtNum(cmp.impressions) : '—', icon: Eye, circle: 'bg-violet-50', color: 'text-violet-500', sparkCls: 'bg-violet-400', key: 'impressions', cur: s.impressions, prev: cmp?.impressions ?? 0 },
-        { label: 'Total clicks', value: fmtNum(s.clicks), prevValue: cmp ? fmtNum(cmp.clicks) : '—', icon: MousePointer2, circle: 'bg-blue-50', color: 'text-blue-500', sparkCls: 'bg-blue-400', key: 'clicks', cur: s.clicks, prev: cmp?.clicks ?? 0 },
-        { label: 'Average CTR', value: `${((s.ctr ?? 0) * 100).toFixed(1)}%`, prevValue: cmp ? `${((cmp.ctr ?? 0) * 100).toFixed(1)}%` : '—', icon: Target, circle: 'bg-teal-50', color: 'text-teal-500', sparkCls: 'bg-teal-400', key: 'ctr', cur: (s.ctr ?? 0) * 100, prev: (cmp?.ctr ?? 0) * 100 },
-        { label: 'Total sessions', value: fmtNum(data?.totalSessions ?? 0), prevValue: data?.totalSessionsPrev ? fmtNum(data.totalSessionsPrev) : null, icon: Users, circle: 'bg-rose-50', color: 'text-rose-500', sparkCls: 'bg-rose-400', key: '', cur: data?.totalSessions ?? 0, prev: data?.totalSessionsPrev ?? 0 },
+        { label: 'Posisi', value: (s.position ?? 0).toFixed(1), prevValue: cmp ? (cmp.position ?? 0).toFixed(1) : '—', icon: BarChart3, circle: 'bg-amber-50', color: 'text-amber-500', sparkCls: 'bg-amber-400', key: 'position', cur: s.position ?? 0, prev: cmp?.position ?? 0, inverse: true },
+        { label: 'Impressi', value: fmtNum(s.impressions), prevValue: cmp ? fmtNum(cmp.impressions) : '—', icon: Eye, circle: 'bg-violet-50', color: 'text-violet-500', sparkCls: 'bg-violet-400', key: 'impressions', cur: s.impressions, prev: cmp?.impressions ?? 0 },
+        { label: 'Klik', value: fmtNum(s.clicks), prevValue: cmp ? fmtNum(cmp.clicks) : '—', icon: MousePointer2, circle: 'bg-blue-50', color: 'text-blue-500', sparkCls: 'bg-blue-400', key: 'clicks', cur: s.clicks, prev: cmp?.clicks ?? 0 },
+        { label: 'Ctr', value: `${((s.ctr ?? 0) * 100).toFixed(1)}%`, prevValue: cmp ? `${((cmp.ctr ?? 0) * 100).toFixed(1)}%` : '—', icon: Target, circle: 'bg-teal-50', color: 'text-teal-500', sparkCls: 'bg-teal-400', key: 'ctr', cur: (s.ctr ?? 0) * 100, prev: (cmp?.ctr ?? 0) * 100 },
+        { label: 'Sesi', value: fmtNum(data?.totalSessions ?? 0), prevValue: data?.totalSessionsPrev ? fmtNum(data.totalSessionsPrev) : null, icon: Users, circle: 'bg-rose-50', color: 'text-rose-500', sparkCls: 'bg-rose-400', key: '', cur: data?.totalSessions ?? 0, prev: data?.totalSessionsPrev ?? 0 },
       ]
     : [];
 
@@ -189,7 +190,6 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                       {isComparing && stat.prevValue != null && (
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-sm font-bold text-gray-400">{stat.prevValue}</span>
-                          <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">periode sebelumnya</span>
                         </div>
                       )}
                       <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
@@ -213,7 +213,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
 
           {/* ===== Top artikel + top query ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Panel title="10 Artikel Paling Perform" icon={ArrowUpRight} hint="klik panah di kolom untuk urutkan">
+            <Panel title="Artikel Paling Perform" icon={ArrowUpRight} hint="klik panah di kolom untuk urutkan">
               {data.gsc.topPages.length === 0 ? (
                 <Empty msg="Tidak ada artikel pada rentang ini." />
               ) : (
@@ -235,7 +235,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
               )}
             </Panel>
 
-            <Panel title="10 Query Paling Perform" icon={Target} hint="klik panah di kolom untuk urutkan">
+            <Panel title="Query Paling Perform" icon={Target} hint="klik panah di kolom untuk urutkan">
               {data.gsc.topQueries.length === 0 ? (
                 <Empty msg="Tidak ada query pada rentang ini." />
               ) : (
@@ -260,7 +260,28 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
 
           {/* ===== Sumber trafik + kota ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Panel title="10 Sumber Trafik Terbanyak" icon={Globe} hint="GA4 · sesi">
+            <Panel
+              title="Sumber Trafik Terbanyak"
+              icon={Globe}
+              hint={
+                <span className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {(['semua', 'organic', 'referral', 'direct', 'ai'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setSrcFilter(f)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-colors border',
+                        srcFilter === f
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700'
+                      )}
+                    >
+                      {f === 'semua' ? 'Semua' : f}
+                    </button>
+                  ))}
+                </span>
+              }
+            >
               {(() => {
                 const med = (r: any) => String(r.medium ?? '').toLowerCase();
                 const all = data.topSources as any[];
@@ -270,32 +291,14 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                   if (srcFilter === 'organic') return m.includes('organic');
                   if (srcFilter === 'referral') return m.includes('referral');
                   if (srcFilter === 'direct') return m.includes('direct');
-                  // ai: medium sumber AI (ChatGPT, Perplexity dll → source mengandung kata ai/bot)
+                  // ai: sumber AI (ChatGPT, Perplexity, Gemini, Copilot, dll)
                   const s = String(r.source ?? '').toLowerCase();
                   return s.includes('ai') || s.includes('chatgpt') || s.includes('perplexity') || s.includes('gemini') || s.includes('copilot') || s.includes('llms-txt');
                 };
                 const rows = all.filter(pass);
                 if (all.length === 0) return <Empty msg="Belum ada data sumber trafik (perlu property GA4 terpilih)." />;
                 return (
-                  <>
-                    <div className="flex items-center gap-1.5 px-5 py-3 border-b border-gray-100 flex-wrap">
-                      {(['semua', 'organic', 'referral', 'direct', 'ai'] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setSrcFilter(f)}
-                          className={cn(
-                            'px-3 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-colors border',
-                            srcFilter === f
-                              ? 'bg-emerald-600 border-emerald-600 text-white'
-                              : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700'
-                          )}
-                        >
-                          {f === 'semua' ? 'Semua' : f}
-                        </button>
-                      ))}
-                      <span className="ml-auto text-[10px] font-bold text-gray-400 uppercase">{rows.length} baris</span>
-                    </div>
-                    <SortableTable
+                  <SortableTable
                       maxH="max-h-[420px]"
                       cols={[
                         { id: 'source', label: 'Sumber' },
@@ -310,12 +313,11 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                         return <span className="font-bold text-gray-900">{fmtNum(r.sessions)}</span>;
                       }}
                     />
-                  </>
                 );
               })()}
             </Panel>
 
-            <Panel title="10 Kota Pengunjung Terbanyak" icon={MapPin} hint="GA4 · sesi">
+            <Panel title="Kota Pengunjung Terbanyak" icon={MapPin} hint="GA4 · sesi">
               {data.topCities.length === 0 ? (
                 <Empty msg="Belum ada data kota pengunjung (perlu property GA4 terpilih)." />
               ) : (

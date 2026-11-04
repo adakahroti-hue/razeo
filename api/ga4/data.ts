@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
             metrics: [{ name: "sessions" }],
             orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-            limit: "10",
+            limit: "100",
           },
         }),
         analyticsdata.properties.runReport({
@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             dimensions: [{ name: "city" }],
             metrics: [{ name: "sessions" }],
             orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-            limit: "10",
+            limit: "100",
           },
         }),
         analyticsdata.properties.runReport({
