@@ -102,6 +102,15 @@ const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean 
   { id: 'cta', label: 'CTA Optimization', icon: MousePointer2 },
 ];
 
+// Navigasi utama — chip di header lama, pindah ke sidebar kiri
+const TAB_LIST: Array<{ id: 'overview' | 'cek' | 'dashboard' | 'konten' | 'tracker'; label: string; icon: any }> = [
+  { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'cek', label: 'Cek', icon: Eye },
+  { id: 'dashboard', label: 'Optimasi', icon: Target },
+  { id: 'konten', label: 'Konten', icon: FileText },
+  { id: 'tracker', label: 'Aksi', icon: History },
+];
+
 // ===== URL halaman (sinkron dengan viewState, tanpa library routing) =====
 const VIEW_PATHS: Record<string, string> = { login: '/', project: '/project', select: '/properti', dashboard: '/dashboard' };
 const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> = {
@@ -2591,53 +2600,6 @@ export default function App() {
 
             </div>
 
-            <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shrink-0">
-              <button
-                onClick={() => setCurrentTab('overview')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'overview' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setCurrentTab('cek')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'cek' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Cek
-              </button>
-              <button
-                onClick={() => setCurrentTab('dashboard')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'dashboard' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Optimasi
-              </button>
-              <button
-                onClick={() => setCurrentTab('konten')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'konten' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Konten
-              </button>
-              <button
-                onClick={() => setCurrentTab('tracker')}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                  currentTab === 'tracker' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                Aksi
-              </button>
-            </nav>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -2774,6 +2736,46 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
+      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-40 overflow-y-auto">
+        <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 mb-2">Menu</span>
+        <nav className="space-y-1">
+          {TAB_LIST.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setCurrentTab(t.id)}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-bold transition-all text-left",
+                currentTab === t.id
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
+            >
+              <t.icon className={cn("w-4 h-4", currentTab === t.id ? "text-white" : "text-gray-400")} />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* isi halaman (tergeser kanan oleh sidebar di layar md+) */}
+      <div className="md:pl-56">
+      {/* strip tab — hanya layar kecil */}
+      <nav className="md:hidden sticky top-16 z-40 bg-white/90 backdrop-blur border-b border-gray-200 px-3 py-2 flex items-center gap-1 overflow-x-auto">
+        {TAB_LIST.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setCurrentTab(t.id)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+              currentTab === t.id ? "bg-white text-gray-900 shadow-sm border border-gray-200" : "text-gray-500 hover:text-gray-900"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       <main className="max-w-[1600px] mx-auto p-6">
         <AnimatePresence mode="wait">
@@ -4440,6 +4442,7 @@ export default function App() {
         </div>
       )}
       </footer>
+      </div>
     </div>
   );
 }
