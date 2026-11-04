@@ -1327,6 +1327,7 @@ export default function App() {
       let topSources: any[] = [];
       let topCities: any[] = [];
       let totalSessions = 0;
+      let totalSessionsPrev = 0;
       let ga4Note: string | null = null;
       const pid = selectedGa4Property?.split('/').pop();
       if (pid) {
@@ -1337,6 +1338,13 @@ export default function App() {
             topSources = da.topSources || [];
             topCities = da.topCities || [];
             totalSessions = da.totalSessions || 0;
+            // sesi periode pembanding (kartu Total sessions saat Compare)
+            if (isComparing) {
+              try {
+                const ac = await fetch(`/api/ga4/data?action=overview&propertyId=${pid}&startDate=${compareStartDate}&endDate=${compareEndDate}`, { headers });
+                if (ac.ok) totalSessionsPrev = (await ac.json()).totalSessions || 0;
+              } catch { /* opsional */ }
+            }
           } else {
             ga4Note = 'Sumber trafik/kota tidak bisa dimuat: ' + (a.status === 401 ? 'property GA4 belum terhubung' : `GA4 (${a.status})`);
           }
@@ -1344,7 +1352,7 @@ export default function App() {
       } else {
         ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
       }
-      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions });
+      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions, totalSessionsPrev });
       setOvNote(ga4Note);
     } catch (e: any) {
       setOvData(null);

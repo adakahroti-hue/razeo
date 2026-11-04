@@ -58,10 +58,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const totalSessions = Number(totRes.data.rows?.[0]?.metricValues?.[0]?.value || 0);
       const pack = (rows: any[]) =>
         (rows || []).map((r: any) => ({
-          key: (r.dimensionValues || []).map((d: any) => d.value).filter(Boolean).join(" / "), // "Google / organic"
+          key: (r.dimensionValues || []).map((d: any) => d.value).filter(Boolean).join(" / "), // untuk kota: "Jakarta"
           sessions: Number(r.metricValues?.[0]?.value || 0),
         }));
-      return res.status(200).json({ topSources: pack(srcRes.data.rows), topCities: pack(cityRes.data.rows), totalSessions });
+      // sumber trafik: kolom Sumber & Medium dipisah
+      const packSource = (rows: any[]) =>
+        (rows || []).map((r: any) => {
+          const source = r.dimensionValues?.[0]?.value || "";
+          const medium = r.dimensionValues?.[1]?.value || "";
+          return { source, medium, key: `${source} / ${medium}`, sessions: Number(r.metricValues?.[0]?.value || 0) };
+        });
+      return res.status(200).json({ topSources: packSource(srcRes.data.rows), topCities: pack(cityRes.data.rows), totalSessions });
     }
     const response = await analyticsdata.properties.runReport({
       property: `properties/${propertyId}`,

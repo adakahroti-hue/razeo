@@ -13,6 +13,7 @@ type Props = {
     topSources: OvRow[];
     topCities: OvRow[];
     totalSessions: number;
+    totalSessionsPrev?: number;
   };
   note: string | null;
   startDate: string;
@@ -50,11 +51,12 @@ function Empty({ msg }: { msg: string }) {
 type Col = { id: string; label: string; align?: 'right' };
 
 function SortableTable({
-  cols, rows, cell,
+  cols, rows, cell, maxH = 'max-h-[320px]',
 }: {
   cols: Col[];
   rows: OvRow[];
   cell: (row: OvRow, colId: string) => React.ReactNode;
+  maxH?: string;
 }) {
   const [sort, setSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
   const sorted = useMemo(() => {
@@ -65,11 +67,13 @@ function SortableTable({
       return v == null ? -Infinity : Number(v);
     };
     // kolom teks ('key') diurutkan alfabetis; sisanya numerik
-    if (sort.id === 'key') {
-      const dir2 = sort.dir === 'asc' ? 1 : -1;
-      return [...rows].sort((a, b) => a.key.localeCompare(b.key) * dir2);
+    const dir2 = sort.dir === 'asc' ? 1 : -1;
+    // kolom teks ('key','source','medium') urut alfabetis; sisanya numerik
+    if (['key', 'source', 'medium'].includes(sort.id)) {
+      const sval = (r: OvRow) => String((r as any)[sort.id] ?? '');
+      return [...rows].sort((a, b) => sval(a).localeCompare(sval(b)) * dir2);
     }
-    return [...rows].sort((a, b) => (val(a) - val(b)) * (sort.dir === 'asc' ? 1 : -1));
+    return [...rows].sort((a, b) => (val(a) - val(b)) * dir2);
   }, [rows, sort]);
 
   const click = (id: string) => {
@@ -79,7 +83,7 @@ function SortableTable({
   return (
     <table className="w-full text-left text-sm">
       <thead>
-        <tr className="border-b border-gray-100">
+        <tr className="border-b border-gray-100 grid grid-cols-[3rem_1fr_7rem_7rem_6rem] md:grid-cols-[3rem_1.6fr_7rem_7rem_6rem] items-center">
           {cols.map((c) => (
             <th key={c.id} className={cn('px-5 py-3', c.align === 'right' ? 'text-right' : 'text-left')}>
               <button
@@ -100,9 +104,10 @@ function SortableTable({
           ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-50">
+      <tbody className={cn("divide-y divide-gray-50 block overflow-y-auto ", maxH)}>
         {sorted.map((r, i) => (
-          <tr key={`${r.key}-${i}`} className="hover:bg-gray-50/60">
+          <tr key={`${r.key}-${i}`} className="hover:bg-gray-50/60 grid grid-cols-[3rem_1fr_7rem_7rem_6rem] md:grid-cols-[3rem_1.6fr_7rem_7rem_6rem] items-center">
+            <td className="px-4 py-3 text-xs font-black text-gray-400 tabular-nums">{i + 1}</td>
             {cols.map((c) => (
               <td key={c.id} className={cn('px-5 py-3 max-w-[300px]', c.align === 'right' ? 'text-right' : '')}>
                 {cell(r, c.id)}
@@ -118,6 +123,8 @@ function SortableTable({
 export default function OverviewTab({ loading, data, note, startDate, endDate, compareStartDate, compareEndDate, isComparing, renderChange, onRefresh }: Props) {
   const s = data?.gsc.summary;
   const cmp = data?.gscPrev?.summary;
+  // filter sumber trafik (state utama — jangan useState di dalam render)
+  const [srcFilter, setSrcFilter] = useState<'semua' | 'organic' | 'referral' | 'direct' | 'ai'>('semua');
   const fmtNum = (n: number | undefined | null) =>
     (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}K` : String(n ?? 0);
 
@@ -135,7 +142,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
         { label: 'Total impressions', value: fmtNum(s.impressions), prevValue: cmp ? fmtNum(cmp.impressions) : '—', icon: Eye, circle: 'bg-violet-50', color: 'text-violet-500', sparkCls: 'bg-violet-400', key: 'impressions', cur: s.impressions, prev: cmp?.impressions ?? 0 },
         { label: 'Total clicks', value: fmtNum(s.clicks), prevValue: cmp ? fmtNum(cmp.clicks) : '—', icon: MousePointer2, circle: 'bg-blue-50', color: 'text-blue-500', sparkCls: 'bg-blue-400', key: 'clicks', cur: s.clicks, prev: cmp?.clicks ?? 0 },
         { label: 'Average CTR', value: `${((s.ctr ?? 0) * 100).toFixed(1)}%`, prevValue: cmp ? `${((cmp.ctr ?? 0) * 100).toFixed(1)}%` : '—', icon: Target, circle: 'bg-teal-50', color: 'text-teal-500', sparkCls: 'bg-teal-400', key: 'ctr', cur: (s.ctr ?? 0) * 100, prev: (cmp?.ctr ?? 0) * 100 },
-        { label: 'Total sessions', value: fmtNum(data?.totalSessions ?? 0), prevValue: '—', icon: Users, circle: 'bg-rose-50', color: 'text-rose-500', sparkCls: 'bg-rose-400', key: '', cur: data?.totalSessions ?? 0, prev: 0 },
+        { label: 'Total sessions', value: fmtNum(data?.totalSessions ?? 0), prevValue: data?.totalSessionsPrev ? fmtNum(data.totalSessionsPrev) : null, icon: Users, circle: 'bg-rose-50', color: 'text-rose-500', sparkCls: 'bg-rose-400', key: '', cur: data?.totalSessions ?? 0, prev: data?.totalSessionsPrev ?? 0 },
       ]
     : [];
 
@@ -179,16 +186,13 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                   </div>
                   <div className="flex items-end justify-between gap-3">
                     <div className="min-w-0">
-                      {isComparing && stat.prevValue !== '—' && (
+                      {isComparing && stat.prevValue != null && (
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-sm font-bold text-gray-400">{stat.prevValue}</span>
                           <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">periode sebelumnya</span>
                         </div>
                       )}
                       <div className="text-3xl font-extrabold leading-none text-gray-900">{stat.value}</div>
-                      <div className="text-[10px] text-gray-400 font-medium mt-2">
-                        {fmtDate(isComparing ? compareStartDate : startDate)} - {fmtDate(isComparing ? compareEndDate : endDate)}
-                      </div>
                     </div>
                     {vals.length > 0 && (
                       <div className="flex items-end gap-[3px] h-9">
@@ -257,22 +261,58 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
           {/* ===== Sumber trafik + kota ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Panel title="10 Sumber Trafik Terbanyak" icon={Globe} hint="GA4 · sesi">
-              {data.topSources.length === 0 ? (
-                <Empty msg="Belum ada data sumber trafik (perlu property GA4 terpilih)." />
-              ) : (
-                <SortableTable
-                  cols={[
-                    { id: 'key', label: 'Sumber / Medium' },
-                    { id: 'sessions', label: 'Sesi', align: 'right' },
-                  ]}
-                  rows={data.topSources}
-                  cell={(r, col) =>
-                    col === 'key'
-                      ? <span className="text-gray-700">{r.key || '(tidak diketahui)'}</span>
-                      : <span className="font-bold text-gray-900">{fmtNum(r.sessions)}</span>
-                  }
-                />
-              )}
+              {(() => {
+                const med = (r: any) => String(r.medium ?? '').toLowerCase();
+                const all = data.topSources as any[];
+                const pass = (r: any) => {
+                  const m = med(r);
+                  if (srcFilter === 'semua') return true;
+                  if (srcFilter === 'organic') return m.includes('organic');
+                  if (srcFilter === 'referral') return m.includes('referral');
+                  if (srcFilter === 'direct') return m.includes('direct');
+                  // ai: medium sumber AI (ChatGPT, Perplexity dll → source mengandung kata ai/bot)
+                  const s = String(r.source ?? '').toLowerCase();
+                  return s.includes('ai') || s.includes('chatgpt') || s.includes('perplexity') || s.includes('gemini') || s.includes('copilot') || s.includes('llms-txt');
+                };
+                const rows = all.filter(pass);
+                if (all.length === 0) return <Empty msg="Belum ada data sumber trafik (perlu property GA4 terpilih)." />;
+                return (
+                  <>
+                    <div className="flex items-center gap-1.5 px-5 py-3 border-b border-gray-100 flex-wrap">
+                      {(['semua', 'organic', 'referral', 'direct', 'ai'] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setSrcFilter(f)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-colors border',
+                            srcFilter === f
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
+                              : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700'
+                          )}
+                        >
+                          {f === 'semua' ? 'Semua' : f}
+                        </button>
+                      ))}
+                      <span className="ml-auto text-[10px] font-bold text-gray-400 uppercase">{rows.length} baris</span>
+                    </div>
+                    <SortableTable
+                      maxH="max-h-[420px]"
+                      cols={[
+                        { id: 'source', label: 'Sumber' },
+                        { id: 'medium', label: 'Medium' },
+                        { id: 'sessions', label: 'Sesi', align: 'right' },
+                      ]}
+                      rows={rows}
+                      cell={(r, col) => {
+                        const rr = r as any;
+                        if (col === 'source') return <span className="text-gray-700 truncate block" title={rr.source || '-'}>{rr.source || '(tidak diketahui)'}</span>;
+                        if (col === 'medium') return <span className="text-gray-600">{rr.medium || '-'}</span>;
+                        return <span className="font-bold text-gray-900">{fmtNum(r.sessions)}</span>;
+                      }}
+                    />
+                  </>
+                );
+              })()}
             </Panel>
 
             <Panel title="10 Kota Pengunjung Terbanyak" icon={MapPin} hint="GA4 · sesi">
