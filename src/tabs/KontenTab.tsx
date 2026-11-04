@@ -90,16 +90,16 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
           </span>
           <span className="text-[11px] px-2 py-0.5 rounded-md font-black text-emerald-700 bg-emerald-50">{items.length} Data</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {showForm ? 'Tutup Form' : 'Tambah Konten'}
-          </button>
-        </div>
       </div>
+
+      {/* Tombol Tambah Konten — floating kanan bawah */}
+      <button
+        onClick={() => setShowForm(!showForm)}
+        className="fixed bottom-10 right-10 z-30 inline-flex items-center gap-2 px-5 py-3 rounded-full bg-emerald-600 text-white text-sm font-bold shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 active:scale-95 transition-all"
+      >
+        <Plus className="w-5 h-5" />
+        {showForm ? 'Tutup Form' : 'Tambah Konten'}
+      </button>
 
       {/* form tambah */}
       {showForm && (
@@ -148,7 +148,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
         <table className="w-full text-left text-sm min-w-[960px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Judul', 'Kategori', 'Target Keyword', 'Tgl. Publikasi', 'Link', 'Role', 'Prioritas', 'Aksi'].map((h) => (
+              {['Kategori', 'Judul', 'Target Keyword', 'Tgl. Publikasi', 'Link', 'Role', 'Prioritas', 'Aksi'].map((h) => (
                 <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400">{h}</th>
               ))}
             </tr>
@@ -168,18 +168,18 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
               const editing = editingId === it.id;
               return (
                 <tr key={it.id} className={cn('hover:bg-gray-50/60', editing && 'bg-emerald-50/40')}>
-                  <td className="px-4 py-2.5 max-w-[240px]">
-                    {editing ? (
-                      <input value={String(edit.judul ?? '')} onChange={(e) => setEdit({ ...edit, judul: e.target.value })} className={cellInput} />
-                    ) : (
-                      <span className="font-semibold text-gray-800 block truncate" title={it.judul}>{it.judul}</span>
-                    )}
-                  </td>
                   <td className="px-4 py-2.5">
                     {editing ? (
                       <input value={String(edit.kategori ?? '')} onChange={(e) => setEdit({ ...edit, kategori: e.target.value })} className={cellInput} />
                     ) : (
                       <span className="text-xs text-gray-600">{it.kategori || '—'}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 max-w-[240px]">
+                    {editing ? (
+                      <input value={String(edit.judul ?? '')} onChange={(e) => setEdit({ ...edit, judul: e.target.value })} className={cellInput} />
+                    ) : (
+                      <span className="font-semibold text-gray-800 block truncate" title={it.judul}>{it.judul}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 max-w-[200px]">
