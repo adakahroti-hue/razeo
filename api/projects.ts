@@ -6,6 +6,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { supabase, requireUser, listProjects, isMember, projectFrom, inviteToken, requireProject } from "razeo-shared";
 
+// default nama event CTA (harus sama dengan DEFAULT_EV di App.tsx)
+const DEFAULT_CTAS = ["click_cta_article", "click_cta_ke_produk", "purchase"];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await requireUser(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
@@ -169,6 +172,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (error) throw error;
         if (!count) return res.status(404).json({ error: "Baris tidak ditemukan" });
         return res.status(200).json({ deleted: true });
+      }
+
+      // --- nama event scroll & CTA project (baca) ---
+      if (action === "events-get") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("project_events")
+          .select("scroll25, scroll50, scroll75, ctas, updated_at")
+          .eq("project_id", info.projectId)
+          .maybeSingle();
+        if (error) {
+          if (String(error.message).includes("schema cache") || error.code === "42P01" || error.code === "PGRST205")
+            return res.status(200).json({ events: null, needsMigration: "jalankan migrasi SQL 0007 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ events: data || null });
+      }
+
+      // --- nama event scroll & CTA project (simpan, HANYA pemilik project) ---
+      if (action === "events-save") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        if (info.role !== "owner") return res.status(403).json({ error: "Hanya pemilik project yang boleh mengubah nama event" });
+        const clean = (v: any, fb: string, max = 80) => {
+          const s = typeof v === "string" ? v.trim().slice(0, max) : "";
+          return s || fb;
+        };
+        const ctas: string[] = Array.isArray(body.ctas) && body.ctas.length
+          ? (body.ctas as any[]).map((x) => (typeof x === "string" ? x.trim() : "").slice(0, 128)).filter(Boolean).slice(0, 20)
+          : DEFAULT_CTAS;
+        const row = {
+          project_id: info.projectId,
+          scroll25: clean(body.scroll25, "scroll_25"),
+          scroll50: clean(body.scroll50, "scroll_50"),
+          scroll75: clean(body.scroll75, "scroll_75"),
+          ctas,
+        };
+        const { data, error } = await supabase
+          .from("project_events")
+          .upsert(row, { onConflict: "project_id" })
+          .select("scroll25, scroll50, scroll75, ctas, updated_at")
+          .single();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel project_events belum ada — jalankan migrasi SQL 0007 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ events: data });
       }
 
       // --- ganti nama project (HANYA pemilik project) ---

@@ -157,9 +157,20 @@ export default function App() {
   const ctaEvKeys = (): string[] => evCfg.ctas.map((x) => (x || '').trim()).filter(Boolean);
   const ctaTotal = (stats: Record<string, number>): number =>
     ctaEvKeys().reduce((acc, ev) => acc + (stats[ev] || 0), 0);
+  // timer simpan nama event ke database (debounce saat mengetik)
+  const evSaveTimer = useRef<number | null>(null);
+  const postEvToDb = (next: EvCfg) => {
+    // kirim ke database; kalau bukan pemilik / migrasi belum jalan, senyap (localStorage tetap jalan)
+    getAuthHeaders().then((headers) => {
+      if (!('Authorization' in headers)) return;
+      fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'events-save', ...next }) }).catch(() => {});
+    }).catch(() => {});
+  };
   const saveEv = (next: EvCfg) => {
     setEvCfg(next);
     localStorage.setItem('razeo_events', JSON.stringify(next));
+    if (evSaveTimer.current) window.clearTimeout(evSaveTimer.current);
+    evSaveTimer.current = window.setTimeout(() => postEvToDb(next), 900);
     // hanya muat ulang yang benar-benar memakai nama event (tab Cek: scroll, Optimasi: daftar event)
     if (currentTab === 'cek') loadCek();
     if (currentTab === 'dashboard' && selectedSite) fetchData(selectedSite);
@@ -226,6 +237,36 @@ export default function App() {
     if (pid) h['X-Project-Id'] = pid;
     return h;
   };
+
+  // muat nama event scroll & CTA dari DATABASE per project (localStorage tetap jadi cadangan)
+  useEffect(() => {
+    if (viewState !== 'dashboard' || !activeProjectId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        if (!('Authorization' in headers)) return;
+        const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'events-get' }) });
+        if (!res.ok) return;
+        const d = await res.json().catch(() => ({}));
+        const ev = d?.events;
+        if (ev && ev.scroll25) {
+          const next: EvCfg = {
+            scroll25: ev.scroll25 || DEFAULT_EV.scroll25,
+            scroll50: ev.scroll50 || DEFAULT_EV.scroll50,
+            scroll75: ev.scroll75 || DEFAULT_EV.scroll75,
+            ctas: Array.isArray(ev.ctas) && ev.ctas.length ? ev.ctas : DEFAULT_EV.ctas,
+          };
+          if (alive) { setEvCfg(next); localStorage.setItem('razeo_events', JSON.stringify(next)); }
+        } else if (d?.events === null) {
+          // belum ada baris di DB → tulis sekali (gagal senyap: anggota non-owner kena 403)
+          postEvToDb(evCfg);
+        }
+      } catch { /* jaringan/DB belum siap → tetap pakai localStorage */ }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewState, activeProjectId]);
 
   const loadProjects = async () => {
     try {
