@@ -138,8 +138,8 @@ export default function CekTab({ loading, data }: Props) {
     // status posisi: 'sama'/'none' dianggap skor tertinggi (tampil ‘0.0’/‘—’ di atas)
     const scoreSt = (s: string) => (s === 'sama' || s === 'none' ? Infinity : s === 'muncul' ? 1e9 : s === 'turun' ? 1 : 0);
     const num = (r: any): number => {
-      if (sort.id === 'sel' && (kind === 'impressi' || kind === 'posisi')) return r.pStatus ? scoreSt(r.pStatus) : -Infinity;
-      if (sort.id === 'delta' && kind === 'impressi') return r.pStatus === 'muncul' ? 1e9 : r.pStatus === 'hilang' ? -Infinity : (typeof r.delta === 'number' ? r.delta : -Infinity);
+      if (sort.id === 'sel' && kind === 'posisi') return r.pStatus ? scoreSt(r.pStatus) : -Infinity;
+      if (sort.id === 'delta' && kind === 'impressi') return r.pStatus ? scoreSt(r.pStatus) : -Infinity;
       const v = r[sort.id];
       return typeof v === 'number' ? v : v == null ? -Infinity : Number(v) || -Infinity;
     };
@@ -153,10 +153,10 @@ export default function CekTab({ loading, data }: Props) {
     kind === 'impressi'
       ? [
           { id: 'url', label: 'URL' },
-          { id: 'prev', label: 'Impresi (Sebelumnya)', right: true },
-          { id: 'cur', label: 'Impresi (Sekarang)', right: true },
-          { id: 'sel', label: 'Δ Posisi SERP', right: true },
-          { id: 'delta', label: 'Selisih', right: true },
+          { id: 'prev', label: 'Impresi Periode Sebelumnya', right: true },
+          { id: 'cur', label: 'Impresi Periode Sekarang', right: true },
+          { id: 'sel', label: 'Selisih Impresi', right: true },
+          { id: 'delta', label: 'Perubahan Posisi SERP', right: true },
         ]
       : kind === 'posisi'
       ? [
@@ -183,10 +183,7 @@ export default function CekTab({ loading, data }: Props) {
   const cell = (r: any, id: string): React.ReactNode => {
     if (id === 'url') return <span className="text-gray-700 block truncate" title={r.url}>{r.url}</span>;
     if (id === 'sel') {
-      if (kind === 'impressi') {
-        const v = posStatusView(r.pStatus, r.pc, r.pp);
-        return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
-      }
+      if (kind === 'impressi') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
       if (kind === 'posisi') {
         const v = posStatusView(r.pStatus, r.cur, r.prev);
         return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
@@ -196,10 +193,8 @@ export default function CekTab({ loading, data }: Props) {
     }
     if (id === 'delta') {
       if (kind === 'impressi') {
-        // 0 → >0 (muncul) / >0 → 0 (hilang) = status, bukan %; sisanya selisih impresi biasa
-        if (r.pStatus === 'muncul') return <DeltaBadge value={null} extra="muncul" />;
-        if (r.pStatus === 'hilang') return <DeltaBadge value={null} extra="hilang" />;
-        return <DeltaBadge value={r.delta} />;
+        const v = posStatusView(r.pStatus, r.pc, r.pp);
+        return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
       }
       if (kind === 'posisi') return null;
       return <DeltaBadge value={r.delta} />;
