@@ -1304,6 +1304,11 @@ export default function App() {
   // ===== Sinkron URL ↔ layar aktif =====
   const bootedRef = useRef(false);
   useEffect(() => {
+    // sebelum status login diketahui, URL yang diminta user dipertahankan
+    // (mis. membuka /dashboard langsung — jangan diubah ke '/' dulu)
+    if (viewState === 'login' && !user && !bootedRef.current) {
+      return; // tahan dulu — transisi pertama nanti tetap replaceState
+    }
     const path = VIEW_PATHS[viewState] ?? '/';
     if (window.location.pathname === path) { bootedRef.current = true; return; }
     if (!bootedRef.current) {
