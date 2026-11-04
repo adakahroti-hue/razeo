@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { FolderOpen, Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User } from 'lucide-react';
+import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export type ContentItem = {
@@ -84,17 +84,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* header + tombol tambah */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-            <FolderOpen className="w-4 h-4 text-emerald-600" />
-            Pendataan Konten
-          </span>
-          <span className="text-[11px] px-2 py-0.5 rounded-md font-black text-emerald-700 bg-emerald-50">{items.length} Data</span>
-        </div>
-      </div>
-
       {/* Tombol Tambah Konten — floating kanan bawah */}
       <button
         onClick={() => setShowForm(!showForm)}
