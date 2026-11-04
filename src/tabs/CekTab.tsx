@@ -25,9 +25,30 @@ const KINDS: { id: Kind; label: string; icon: any }[] = [
   { id: 'scroll', label: 'Scroll', icon: ScanLine },
 ];
 
+/** posisi 0 (atau absen) = TIDAK ADA posisi; posisi 1 = tertinggi (tak ada di atasnya) → null */
+const posNum = (v: unknown): number | null => {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+// status perbandingan posisi dua periode
+type PosStatus = 'none' | 'muncul' | 'hilang' | 'naik' | 'turun' | 'sama';
+const posStatus = (pp: number | null, pc: number | null): PosStatus => {
+  if (pp == null && pc == null) return 'none';       // tak pernah tampil sama sekali
+  if (pp == null) return 'muncul';                   // 0 → >0 : BAGUS (muncul di indeks)
+  if (pc == null) return 'hilang';                   // >0 → 0 : BURUK (hilang dari indeks)
+  return pc < pp ? 'naik' : pc > pp ? 'turun' : 'sama'; // naik = mendekati posisi 1 = bagus
+};
+// teks selisih + warna utk status posisi
+const posStatusView = (s: PosStatus, pc: number | null, pp: number | null) => {
+  if (s === 'none') return { text: '—', cls: 'text-gray-400' };
+  if (s === 'muncul') return { text: `▲ muncul (dari 0 → ${pc!.toFixed(1)})`, cls: 'text-emerald-700' };
+  if (s === 'hilang') return { text: `▼ hilang (dari ${pp!.toFixed(1)} → 0)`, cls: 'text-red-600' };
+  if (s === 'sama') return { text: '0.0', cls: 'text-gray-500' };
+  const d = pc! - pp!;
+  return { text: `${d > 0 ? '▼' : '▲'} ${Math.abs(d).toFixed(1)}`, cls: d < 0 ? 'text-emerald-700' : 'text-red-600' };
+};
+
 const div = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${d}`);
-// selisih dalam satuan posisi/CTR: selalu 1 angka di belakang koma
-const div1 = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(1)}`);
 const pct = (d: number | undefined | null) =>
   d == null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(2)}%`;
 // selisih %; posisi turun = bagus
@@ -42,7 +63,9 @@ const allUrls = (a: Pair[], b: Pair[]) => {
   return [...s];
 };
 
-function DeltaBadge({ value, inverse = false, raw, digits = 2 }: { value: number | null; inverse?: boolean; raw?: string; digits?: number }) {
+function DeltaBadge({ value, inverse = false, raw, extra, digits = 2 }: { value: number | null; inverse?: boolean; raw?: string; extra?: 'muncul' | 'hilang'; digits?: number }) {
+  if (extra === 'muncul') return <span className="inline-flex items-center text-xs font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">↑ muncul</span>;
+  if (extra === 'hilang') return <span className="inline-flex items-center text-xs font-black px-2 py-0.5 rounded-md bg-red-50 text-red-600">↓ hilang</span>;
   if (raw) return <span className="text-xs font-bold text-gray-600">{raw}</span>;
   if (value == null) return <span className="text-xs font-bold text-gray-400">—</span>;
   const isUp = value > 0;
@@ -76,20 +99,21 @@ export default function CekTab({ loading, data }: Props) {
         const p: Partial<GscRow> = p2.get(url) || {};
         if (kind === 'impressi') {
           const sel = (c.impressions ?? 0) - (p.impressions ?? 0);
-          // posisi 0 = TIDAK ADA posisi (tak tampil di indeks) → delta hanya
-          // dihitung kalau URL punya posisi di KEDUA periode (posisi 1 = tertinggi)
-          const pc = c.position && c.position > 0 ? c.position : null;
-          const pp = p.position && p.position > 0 ? p.position : null;
-          const selPos = pc != null && pp != null ? pc - pp : null;
-          return { url, prev: p.impressions ?? 0, cur: c.impressions ?? 0, sel, delta: rel(c.impressions ?? 0, p.impressions ?? 0), selPos };
+          // posisi 0 = TIDAK ADA posisi (posisi 1 = tertinggi) → status khusus,
+          // bukan selisih biasa (0 dianggap angka terendah oleh aritmatika)
+          const pp = posNum(p.position);
+          const pc = posNum(c.position);
+          const pStatus = posStatus(pp, pc);
+          const selPos = pp != null && pc != null ? pc - pp : null;
+          return { url, prev: p.impressions ?? 0, cur: c.impressions ?? 0, sel, delta: rel(c.impressions ?? 0, p.impressions ?? 0), pp, pc, pStatus, selPos };
         }
         if (kind === 'posisi') {
           // posisi 0 = tak ada posisi → null = tidak muncul di hasil pencarian
-          const pp = p.position && p.position > 0 ? p.position : null;
-          const pc = c.position && c.position > 0 ? c.position : null;
-          const sel = pp != null && pc != null ? pc - pp : null;
+          const pp = posNum(p.position);
+          const pc = posNum(c.position);
+          const pStatus = posStatus(pp, pc);
           const selImp = (c.impressions ?? 0) - (p.impressions ?? 0);
-          return { url, prev: pp, cur: pc, sel, delta: sel, selImp };
+          return { url, prev: pp, cur: pc, pStatus, selImp };
         }
         // klik → CTR dua periode
         const sel = ((c.ctr ?? 0) - (p.ctr ?? 0)) * 100;
@@ -111,7 +135,11 @@ export default function CekTab({ loading, data }: Props) {
     if (!sort) return rows;
     const dir = sort.dir === 'asc' ? 1 : -1;
     if (sort.id === 'url') return [...rows].sort((a, b) => a.url.localeCompare(b.url) * dir);
+    // status posisi: 'sama'/'none' dianggap skor tertinggi (tampil ‘0.0’/‘—’ di atas)
+    const scoreSt = (s: string) => (s === 'sama' || s === 'none' ? Infinity : s === 'muncul' ? 1e9 : s === 'turun' ? 1 : 0);
     const num = (r: any): number => {
+      if (sort.id === 'sel' && (kind === 'impressi' || kind === 'posisi')) return r.pStatus ? scoreSt(r.pStatus) : -Infinity;
+      if (sort.id === 'delta' && kind === 'impressi') return r.pStatus === 'muncul' ? 1e9 : r.pStatus === 'hilang' ? -Infinity : (typeof r.delta === 'number' ? r.delta : -Infinity);
       const v = r[sort.id];
       return typeof v === 'number' ? v : v == null ? -Infinity : Number(v) || -Infinity;
     };
@@ -127,15 +155,15 @@ export default function CekTab({ loading, data }: Props) {
           { id: 'url', label: 'URL' },
           { id: 'prev', label: 'Impresi (Sebelumnya)', right: true },
           { id: 'cur', label: 'Impresi (Sekarang)', right: true },
-          { id: 'sel', label: 'Selisih', right: true },
-          { id: 'delta', label: 'Δ Posisi SERP', right: true },
+          { id: 'sel', label: 'Δ Posisi SERP', right: true },
+          { id: 'delta', label: 'Selisih', right: true },
         ]
       : kind === 'posisi'
       ? [
           { id: 'url', label: 'URL' },
           { id: 'prev', label: 'Posisi (Sebelumnya)', right: true },
           { id: 'cur', label: 'Posisi (Sekarang)', right: true },
-          { id: 'sel', label: 'Selisih Posisi', right: true },
+          { id: 'sel', label: 'Selisih Posisi (0 = tak tampil)', right: true },
           { id: 'selImp', label: 'Selisih Impressi', right: true },
         ]
       : kind === 'klik'
@@ -155,17 +183,27 @@ export default function CekTab({ loading, data }: Props) {
   const cell = (r: any, id: string): React.ReactNode => {
     if (id === 'url') return <span className="text-gray-700 block truncate" title={r.url}>{r.url}</span>;
     if (id === 'sel') {
-      if (kind === 'impressi') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
-      if (kind === 'posisi') return <span className={cn('font-bold', r.sel < 0 ? 'text-emerald-700' : r.sel > 0 ? 'text-red-600' : 'text-gray-500')}>{div1(r.sel)}</span>;
+      if (kind === 'impressi') {
+        const v = posStatusView(r.pStatus, r.pc, r.pp);
+        return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
+      }
+      if (kind === 'posisi') {
+        const v = posStatusView(r.pStatus, r.cur, r.prev);
+        return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
+      }
       if (kind === 'klik') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{pct(r.sel)}</span>;
       return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
     }
     if (id === 'delta') {
-      if (kind === 'impressi') return <DeltaBadge value={r.delta} />; // ringkasan selisih impresi (berdasar delta %)
-      if (kind === 'posisi') return <DeltaBadge value={r.delta} inverse />;
+      if (kind === 'impressi') {
+        // 0 → >0 (muncul) / >0 → 0 (hilang) = status, bukan %; sisanya selisih impresi biasa
+        if (r.pStatus === 'muncul') return <DeltaBadge value={null} extra="muncul" />;
+        if (r.pStatus === 'hilang') return <DeltaBadge value={null} extra="hilang" />;
+        return <DeltaBadge value={r.delta} />;
+      }
+      if (kind === 'posisi') return null;
       return <DeltaBadge value={r.delta} />;
     }
-    if (id === 'selPos') return <span className="font-bold text-gray-600">{div1(r.selPos)}</span>; // impresi: selisih posisi
     if (id === 'selImp') return <span className="font-bold text-gray-600">{div(r.selImp)}</span>; // posisi: selisih impresi
     if (kind === 'posisi') return <span className="font-bold text-gray-900">{r[id] == null ? '—' : Number(r[id]).toFixed(1)}</span>; // posisi 0 = tak ada posisi → tampil —
     if (kind === 'klik') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(2)}%</span>;
