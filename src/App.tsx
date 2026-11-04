@@ -1,29 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Search, 
-  BarChart3, 
-  TrendingUp, 
-  AlertCircle, 
-  ExternalLink, 
-  RefreshCw, 
-  LogOut, 
-  ChevronRight,
-  Globe,
-  MousePointer2,
-  Eye,
-  Target,
-  Filter,
-  FileDown,
-  X,
-  Plus,
+import {
+  AlertCircle,
+  BarChart3,
   Calendar,
-  History,
-  FileText,
-  Trash2,
-  Download,
   CheckCircle2,
   ChevronDown,
-  ChevronUp
+  ChevronRight,
+  ChevronUp,
+  Download,
+  ExternalLink,
+  Eye,
+  FileDown,
+  FileText,
+  Filter,
+  Globe,
+  History,
+  LogOut,
+  MousePointer2,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Target,
+  Trash2,
+  TrendingUp,
+  X
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -128,8 +129,41 @@ export default function App() {
   const [projectRole, setProjectRole] = useState<string | null>(null);
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectWorking, setProjectWorking] = useState(false);
-  // pill rentang tanggal (header)
+  // pill rentang tanggal (header) + pengaturan nama event GA4 (scroll 25/50/75 & CTA)
+  type EvCfg = { scroll25: string; scroll50: string; scroll75: string; ctas: string[] };
+  const DEFAULT_EV: EvCfg = {
+    scroll25: 'scroll_25', scroll50: 'scroll_50', scroll75: 'scroll_75',
+    ctas: ['click_cta_article', 'click_cta_ke_produk', 'purchase'],
+  };
+  // dibaca CIAP KALI (localStorage) — lambat tapi bikin seluruh cetus (fetch, sort, render) memakai nama terbaru
+  const [evCfg, setEvCfg] = useState<EvCfg>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('razeo_events') || 'null') as Partial<EvCfg> | null;
+      if (!raw) return DEFAULT_EV;
+      return {
+        scroll25: raw.scroll25 || DEFAULT_EV.scroll25,
+        scroll50: raw.scroll50 || DEFAULT_EV.scroll50,
+        scroll75: raw.scroll75 || DEFAULT_EV.scroll75,
+        ctas: Array.isArray(raw.ctas) ? (raw.ctas.filter((x) => typeof x === 'string' && x.trim()) as string[]) : DEFAULT_EV.ctas,
+      };
+    } catch { return DEFAULT_EV; }
+  });
+  const [showEvPop, setShowEvPop] = useState(false);
   const [showDatePop, setShowDatePop] = useState(false);
+  // nama event scroll sesuai pengaturan (fallback ke default kalau kosong)
+  const evKey = (pct: number): string =>
+    (pct === 25 ? evCfg.scroll25 : pct === 50 ? evCfg.scroll50 : evCfg.scroll75).trim() || `scroll_${pct}`;
+  // daftar nama event CTA (boleh banyak)
+  const ctaEvKeys = (): string[] => evCfg.ctas.map((x) => (x || '').trim()).filter(Boolean);
+  const ctaTotal = (stats: Record<string, number>): number =>
+    ctaEvKeys().reduce((acc, ev) => acc + (stats[ev] || 0), 0);
+  const saveEv = (next: EvCfg) => {
+    setEvCfg(next);
+    localStorage.setItem('razeo_events', JSON.stringify(next));
+    // hanya muat ulang yang benar-benar memakai nama event (tab Cek: scroll, Optimasi: daftar event)
+    if (currentTab === 'cek') loadCek();
+    if (currentTab === 'dashboard' && selectedSite) fetchData(selectedSite);
+  };
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [compareStartDate, setCompareStartDate] = useState<string>(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -521,7 +555,7 @@ export default function App() {
   const [lhfSort, setLhfSort] = useState<{ col: 'clicks' | 'impressions' | 'position', order: 'asc' | 'desc' }>({ col: 'position', order: 'asc' });
   const [scrollSort, setScrollSort] = useState<{ col: 'sessions' | 'scroll_25' | 'scroll_50' | 'scroll_75', order: 'asc' | 'desc' }>({ col: 'sessions', order: 'desc' });
   const [erSort, setErSort] = useState<{ col: 'sessions' | 'er', order: 'asc' | 'desc' }>({ col: 'er', order: 'asc' });
-  const [ctaSort, setCtaSort] = useState<{ col: 'sessions' | 'cta_article' | 'cta_product', order: 'asc' | 'desc' }>({ col: 'sessions', order: 'desc' });
+  const [ctaSort, setCtaSort] = useState<{ col: 'sessions' | 'cta_total', order: 'asc' | 'desc' }>({ col: 'sessions', order: 'desc' });
 
   const getSlug = (url: string) => {
     if (!url) return '';
@@ -536,20 +570,12 @@ export default function App() {
     }
   };
 
-  const TRACKED_EVENTS = [
-    "click_cta_article",
-    "click_cta_ke_produk",
-    "purchase",
-    "purchase_marketplace",
-    "purchase_tiktok",
-    "purchase_whatsapp",
-    "scroll_25",
-    "scroll_50",
-    "scroll_75",
-    "page_view",
-    "sessions",
-    "engagement_rate"
-  ];
+  // kunci stats per halaman — scroll & CTA memakai nama dari pengaturan,
+    // 'sessions'/'engagement_rate' tetap kunci internal (bukan nama event)
+    const TRACKED_EVENTS = Array.from(new Set([
+      ...ctaEvKeys(), evKey(25), evKey(50), evKey(75),
+      "page_view", "sessions", "engagement_rate",
+    ]));
 
   const getGa4StatsForPage = (pageUrl: string) => {
     const slug = getSlug(pageUrl);
@@ -1099,9 +1125,9 @@ export default function App() {
       return [
         getSlug(row.keys[0]),
         sessions,
-        getPerc(ga4['scroll_25'] || 0),
-        getPerc(ga4['scroll_50'] || 0),
-        getPerc(ga4['scroll_75'] || 0)
+        getPerc(ga4[evKey(25)] || 0),
+        getPerc(ga4[evKey(50)] || 0),
+        getPerc(ga4[evKey(75)] || 0)
       ];
     });
 
@@ -1186,22 +1212,17 @@ export default function App() {
     const tableData = dataToExport.map(row => {
       const ga4 = getGa4StatsForPage(row.keys[0]);
       const sessions = ga4['sessions'] || 0;
-      const ctaArticle = ga4['click_cta_article'] || 0;
-      const ctaProduct = ga4['click_cta_ke_produk'] || 0;
-      
-      const ctaArticlePerc = sessions > 0 ? (ctaArticle / sessions) * 100 : 0;
-      const ctaProductPerc = sessions > 0 ? (ctaProduct / sessions) * 100 : 0;
+      const ctaPerc = sessions > 0 ? (ctaTotal(ga4) / sessions) * 100 : 0;
       
       return [
         getSlug(row.keys[0]),
         sessions.toLocaleString(),
-        `${ctaArticlePerc.toFixed(2)}%`,
-        `${ctaProductPerc.toFixed(2)}%`
+        `${ctaPerc.toFixed(2)}%`
       ];
     });
 
     autoTable(doc, {
-      head: [['Page URL', 'Sessions', 'CTA Article %', 'CTA Product %']],
+      head: [['Page URL', 'Sessions', 'CTA %']],
       body: tableData,
       startY: 45,
       theme: 'striped',
@@ -1397,7 +1418,7 @@ export default function App() {
       const pid = selectedGa4Property?.split('/').pop();
       if (pid) {
         try {
-          const a = await fetch(`/api/ga4/data?action=compare&propertyId=${pid}&startDate=${sd}&endDate=${ed}&compareStartDate=${cs}&compareEndDate=${ce}`, { headers });
+          const a = await fetch(`/api/ga4/data?action=compare&propertyId=${pid}&startDate=${sd}&endDate=${ed}&compareStartDate=${cs}&compareEndDate=${ce}&scroll75Event=${encodeURIComponent(evKey(75))}`, { headers });
           if (a.ok) { const d2 = await a.json(); sesi = d2.sessions; scroll75 = d2.scroll75; }
         } catch { /* GA4 opsional */ }
       }
@@ -1603,7 +1624,8 @@ export default function App() {
       // Fetch GA4 data if property is selected
       if (selectedGa4Property) {
         try {
-          const ga4Res = await fetch(`/api/ga4/data?propertyId=${selectedGa4Property.split('/').pop()}&startDate=${startDate}&endDate=${endDate}`, { headers });
+          const evList = [...(evCfg.ctas || []), evCfg.scroll25, evCfg.scroll50, evCfg.scroll75].filter(Boolean).join(',');
+      const ga4Res = await fetch(`/api/ga4/data?propertyId=${selectedGa4Property.split('/').pop()}&startDate=${startDate}&endDate=${endDate}&events=${encodeURIComponent(evList)}`, { headers });
           const ga4Data = await ga4Res.json();
           if (ga4Res.ok) {
             setGa4Data(ga4Data);
@@ -2194,9 +2216,9 @@ export default function App() {
             const sessions = stats.sessions || 0;
             if (sessions === 0) return false;
             
-            const p25 = (stats.scroll_25 || 0) / sessions;
-            const p50 = (stats.scroll_50 || 0) / sessions;
-            const p75 = (stats.scroll_75 || 0) / sessions;
+            const p25 = (stats[evKey(25)] || 0) / sessions;
+            const p50 = (stats[evKey(50)] || 0) / sessions;
+            const p75 = (stats[evKey(75)] || 0) / sessions;
             
             return p25 < 0.7 || p50 < 0.5 || p75 < 0.3;
           });
@@ -2214,13 +2236,13 @@ export default function App() {
           
           const getPerc = (stats: any, col: string) => {
             const s = stats.sessions || 0;
-            const v = stats[col] || 0;
+            const v = col === '__cta_total' ? ctaTotal(stats) : (stats[col] || 0);
             return s > 0 ? v / s : 0;
           };
 
-          if (scrollSort.col === 'scroll_25') return (getPerc(statsA, 'scroll_25') - getPerc(statsB, 'scroll_25')) * factor;
-          if (scrollSort.col === 'scroll_50') return (getPerc(statsA, 'scroll_50') - getPerc(statsB, 'scroll_50')) * factor;
-          if (scrollSort.col === 'scroll_75') return (getPerc(statsA, 'scroll_75') - getPerc(statsB, 'scroll_75')) * factor;
+          if (scrollSort.col === 'scroll_25') return (getPerc(statsA, evKey(25)) - getPerc(statsB, evKey(25))) * factor;
+          if (scrollSort.col === 'scroll_50') return (getPerc(statsA, evKey(50)) - getPerc(statsB, evKey(50))) * factor;
+          if (scrollSort.col === 'scroll_75') return (getPerc(statsA, evKey(75)) - getPerc(statsB, evKey(75))) * factor;
           
           return (b.impressions - a.impressions);
         });
@@ -2336,12 +2358,11 @@ export default function App() {
           
           const getPerc = (stats: any, col: string) => {
             const s = stats.sessions || 0;
-            const v = stats[col] || 0;
+            const v = col === '__cta_total' ? ctaTotal(stats) : (stats[col] || 0);
             return s > 0 ? v / s : 0;
           };
 
-          if (ctaSort.col === 'cta_article') return (getPerc(statsA, 'click_cta_article') - getPerc(statsB, 'click_cta_article')) * factor;
-          if (ctaSort.col === 'cta_product') return (getPerc(statsA, 'click_cta_ke_produk') - getPerc(statsB, 'click_cta_ke_produk')) * factor;
+          if (ctaSort.col === 'cta_total') return (getPerc(statsA, '__cta_total') - getPerc(statsB, '__cta_total')) * factor;
           
           return (b.impressions - a.impressions);
         });
@@ -2551,7 +2572,7 @@ export default function App() {
                   currentTab === 'dashboard' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
                 )}
               >
-                Audit
+                Optimasi
               </button>
               <button
                 onClick={() => setCurrentTab('konten')}
@@ -2577,6 +2598,60 @@ export default function App() {
           <div className="flex items-center gap-3 shrink-0">
             {(currentTab === 'dashboard' || currentTab === 'overview' || currentTab === 'cek') && (
               <>
+                {/* Pengaturan nama event (scroll/CTA) */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEvPop(!showEvPop)}
+                    className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors text-gray-600 shadow-sm"
+                    title="Atur nama event scroll & CTA"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  {showEvPop && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-[60] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Nama Event Scroll</span>
+                        <button onClick={() => setShowEvPop(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                      </div>
+                      {(['scroll25', 'scroll50', 'scroll75'] as const).map((k) => (
+                        <label key={k} className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                          {k.replace('scroll', 'Scroll ')}%
+                          <input
+                            value={evCfg[k]}
+                            onChange={(e) => saveEv({ ...evCfg, [k]: e.target.value.trim() })}
+                            className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                          />
+                        </label>
+                      ))}
+                      <div className="border-t border-gray-100 pt-3 space-y-2">
+                        <span className="block text-[11px] font-black uppercase tracking-wider text-gray-400">Event CTA (boleh lebih dari satu)</span>
+                        {evCfg.ctas.map((ev: string, i: number) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <input
+                              value={ev}
+                              onChange={(e) => saveEv({ ...evCfg, ctas: evCfg.ctas.map((x: string, j: number) => (j === i ? e.target.value.trim() : x)) })}
+                              className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                            />
+                            <button
+                              onClick={() => saveEv({ ...evCfg, ctas: evCfg.ctas.filter((_: string, j: number) => j !== i) })}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Hapus event"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => saveEv({ ...evCfg, ctas: [...evCfg.ctas, ''] })}
+                          className="w-full py-2 border border-dashed border-emerald-300 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors"
+                        >
+                          + Tambah Event CTA
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400">Simpan otomatis — tab Optimasi & Cek langsung memakainya.</p>
+                    </div>
+                  )}
+                </div>
                 {/* Pill rentang tanggal */}
                 <div className="relative hidden md:block">
                   <button
@@ -3326,30 +3401,17 @@ export default function App() {
                       </th>
                     )}
                     {auditTab === 'cta' && (
-                      <>
-                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">
-                          <div className="flex items-center gap-2">
-                            CTA Article %
-                            <button 
-                              onClick={() => setCtaSort({ col: 'cta_article', order: ctaSort.col === 'cta_article' && ctaSort.order === 'desc' ? 'asc' : 'desc' })}
-                              className={cn("p-1 rounded hover:bg-gray-200 transition-colors", ctaSort.col === 'cta_article' && "text-emerald-600 bg-emerald-50")}
-                            >
-                              <TrendingUp className={cn("w-3 h-3", ctaSort.col === 'cta_article' && ctaSort.order === 'asc' && "rotate-180")} />
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">
-                          <div className="flex items-center gap-2">
-                            CTA Product %
-                            <button 
-                              onClick={() => setCtaSort({ col: 'cta_product', order: ctaSort.col === 'cta_product' && ctaSort.order === 'desc' ? 'asc' : 'desc' })}
-                              className={cn("p-1 rounded hover:bg-gray-200 transition-colors", ctaSort.col === 'cta_product' && "text-emerald-600 bg-emerald-50")}
-                            >
-                              <TrendingUp className={cn("w-3 h-3", ctaSort.col === 'cta_product' && ctaSort.order === 'asc' && "rotate-180")} />
-                            </button>
-                          </div>
-                        </th>
-                      </>
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">
+                        <div className="flex items-center gap-2">
+                          CTA %
+                          <button 
+                            onClick={() => setCtaSort({ col: 'cta_total', order: ctaSort.col === 'cta_total' && ctaSort.order === 'desc' ? 'asc' : 'desc' })}
+                            className={cn("p-1 rounded hover:bg-gray-300 transition-colors", ctaSort.col === 'cta_total' && "text-emerald-600 bg-emerald-50")}
+                          >
+                            <TrendingUp className={cn("w-3 h-3", ctaSort.col === 'cta_total' && ctaSort.order === 'asc' && "rotate-180")} />
+                          </button>
+                        </div>
+                      </th>
                     )}
                     {auditTab !== 'er' && auditTab !== 'cta' && (
                       <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -3560,32 +3622,22 @@ export default function App() {
                           </td>
                         )}
                         {auditTab === 'cta' && (
-                          <>
-                            <td className="px-8 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-gray-700">
-                                  {(() => {
-                                    const stats = getGa4StatsForPage(row.keys[0]);
-                                    const sessions = stats.sessions || 0;
-                                    const val = stats.click_cta_article || 0;
-                                    return sessions > 0 ? `${((val / sessions) * 100).toFixed(2)}%` : '0.00%';
-                                  })()}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-8 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-gray-700">
-                                  {(() => {
-                                    const stats = getGa4StatsForPage(row.keys[0]);
-                                    const sessions = stats.sessions || 0;
-                                    const val = stats.click_cta_ke_produk || 0;
-                                    return sessions > 0 ? `${((val / sessions) * 100).toFixed(2)}%` : '0.00%';
-                                  })()}
-                                </span>
-                              </div>
-                            </td>
-                          </>
+                          <td className="px-8 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-gray-700">
+                                {(() => {
+                                  const stats = getGa4StatsForPage(row.keys[0]);
+                                  const sessions = stats.sessions || 0;
+                                  const val = ctaTotal(stats);
+                                  return sessions > 0 ? `${((val / sessions) * 100).toFixed(2)}%` : '0.00%';
+                                })()}
+                              </span>
+                              {(() => {
+                                const n = ctaEvKeys().length;
+                                return n > 1 ? <span className="text-[10px] text-gray-400 font-normal">{n} event</span> : null;
+                              })()}
+                            </div>
+                          </td>
                         )}
                       {auditTab !== 'er' && auditTab !== 'cta' && (
                         <td className="px-8 py-4 text-sm font-bold text-gray-700">
@@ -3594,7 +3646,7 @@ export default function App() {
                             (() => {
                               const stats = getGa4StatsForPage(row.keys[0]);
                               const sessions = stats['sessions'] || 0;
-                              const scrollValue = stats['scroll_25'] || 0;
+                              const scrollValue = stats[evKey(25)] || 0;
                               const percentage = sessions > 0 ? (scrollValue / sessions) * 100 : 0;
                               return (
                                 <div className="flex flex-col">
@@ -3620,7 +3672,7 @@ export default function App() {
                           (() => {
                             const stats = getGa4StatsForPage(row.keys[0]);
                             const sessions = stats['sessions'] || 0;
-                            const scrollValue = stats['scroll_50'] || 0;
+                            const scrollValue = stats[evKey(50)] || 0;
                             const percentage = sessions > 0 ? (scrollValue / sessions) * 100 : 0;
                             return (
                               <div className="flex flex-col">
@@ -3641,7 +3693,7 @@ export default function App() {
                             (() => {
                               const stats = getGa4StatsForPage(row.keys[0]);
                               const sessions = stats['sessions'] || 0;
-                              const scrollValue = stats['scroll_75'] || 0;
+                              const scrollValue = stats[evKey(75)] || 0;
                               const percentage = sessions > 0 ? (scrollValue / sessions) * 100 : 0;
                               return (
                                 <div className="flex flex-col">

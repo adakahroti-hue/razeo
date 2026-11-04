@@ -135,15 +135,34 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
     (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}K` : String(n ?? 0);
 
   const timeSeries = data?.gsc?.timeSeries || [];
+
+  // Kelompokkan deret harian menjadi 7 periode setara — tiap batang = satu bagian
+  // dari rentang tanggal yang dipilih (gambar naik/turun 7 periode ke belakang).
+  const bucketize = (rows: any[], key?: string): number[] => {
+    const vals = rows.map((r: any) => Number(key ? r?.[key] : r) || 0);
+    if (vals.length === 0) return [];
+    const n = 7;
+    const per = Math.max(1, Math.ceil(vals.length / n));
+    const buckets: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const slice = vals.slice(i * per, (i + 1) * per);
+      if (slice.length === 0) break;
+      // bagian terakhir: rata-rata saja biar posisi/click tidak membengkak
+      const sum = slice.reduce((a, b) => a + b, 0);
+      buckets.push(Math.round((sum / slice.length) * 100) / 100);
+    }
+    return buckets;
+  };
+
   const spark = (key: string) => {
-    const vals = timeSeries.slice(-14).map((r: any) => Number(r?.[key]) || 0);
+    const vals = bucketize(timeSeries, key);
     const max = Math.max(1, ...vals);
     return { vals, max };
   };
-  // deret sesi harian GA4 — bahan batang kartu "Sesi"
+  // deret sesi harian GA4 → juga 7 periode
   const sparkSesi = (() => {
     const src = ((data as any)?.sesiHarian || []) as any[];
-    const vals = src.slice(-14).map((r) => Number(r?.sessions) || 0);
+    const vals = bucketize(src, 'sessions');
     return { vals, max: Math.max(1, ...vals) };
   })();
 

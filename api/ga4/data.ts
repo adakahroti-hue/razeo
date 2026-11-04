@@ -46,17 +46,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           value: Number(r.metricValues?.[0]?.value || 0),
         }));
       const pageDims = [{ name: "pagePath" }];
+      // nama event scroll-75 dikirim dari pengaturan (frontend)
+      const ev75 = String(req.query.scroll75Event || "").trim() || "scroll_75";
       const [sC, sP, eC, eP] = await Promise.all([
         rep(startDate as string, endDate as string, pageDims, "sessions"),
         rep(csd, ced, pageDims, "sessions"),
         rep(startDate as string, endDate as string, [{ name: "pagePath" }, { name: "eventName" }], "eventCount", {
           dimensionFilter: {
-            filter: { fieldName: "eventName", inListFilter: { values: ["scroll_75"] } },
+            filter: { fieldName: "eventName", inListFilter: { values: [ev75] } },
           },
         }),
         rep(csd, ced, [{ name: "pagePath" }, { name: "eventName" }], "eventCount", {
           dimensionFilter: {
-            filter: { fieldName: "eventName", inListFilter: { values: ["scroll_75"] } },
+            filter: { fieldName: "eventName", inListFilter: { values: [ev75] } },
           },
         }),
       ]);
@@ -177,19 +179,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           filter: {
             fieldName: "eventName",
             inListFilter: {
-              values: [
-                "click_cta_article",
-                "click_cta_ke_produk",
-                "purchase",
-                "purchase_marketplace",
-                "purchase_tiktok",
-                "purchase_whatsapp",
-                "scroll_25",
-                "scroll_50",
-                "scroll_75",
-                "session_start",
-                "page_view",
-              ],
+              // daftar event dikirim dari pengaturan (frontend, dipisah koma);
+              // page_view & session_start SELALU ditambahkan karena keduanya
+              // sumber 'sessions' + 'engagement_rate' per halaman di frontend
+              values: (() => {
+                const fromClient = String(req.query.events || "")
+                  .split(",").map((x) => x.trim()).filter(Boolean);
+                const base = fromClient.length ? fromClient : [
+                  "click_cta_article",
+                  "click_cta_ke_produk",
+                  "purchase",
+                  "purchase_marketplace",
+                  "purchase_tiktok",
+                  "purchase_whatsapp",
+                  "scroll_25",
+                  "scroll_50",
+                  "scroll_75",
+                  "session_start",
+                  "page_view",
+                ];
+                return Array.from(new Set([...base, "session_start", "page_view"]));
+              })(),
             },
           },
         },
