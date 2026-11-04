@@ -23,6 +23,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const analyticsdata = google.analyticsdata({ version: "v1beta", auth: client });
 
+    // ===== Mode COMPARE (tab Cek): sesi & scroll 75% per halaman, dua periode =====
+    if (String(action || "") === "compare") {
+      const csd = String(req.query.compareStartDate || "");
+      const ced = String(req.query.compareEndDate || "");
+      if (!csd || !ced) return res.status(400).json({ error: "compareStartDate & compareEndDate wajib diisi" });
+      const rep = (sd: string, ed: string, dims: any[], metric: string, extra: any = {}) =>
+        analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [{ startDate: sd, endDate: ed }],
+            dimensions: dims,
+            metrics: [{ name: metric }],
+            orderBys: [{ metric: { metricName: metric }, desc: true }],
+            limit: "100",
+            ...extra,
+          },
+        });
+      const pack = (rows: any[]) =>
+        (rows || []).map((r: any) => ({
+          url: r.dimensionValues?.[0]?.value || "",
+          value: Number(r.metricValues?.[0]?.value || 0),
+        }));
+      const pageDims = [{ name: "pagePath" }];
+      const [sC, sP, eC, eP] = await Promise.all([
+        rep(startDate as string, endDate as string, pageDims, "sessions"),
+        rep(csd, ced, pageDims, "sessions"),
+        rep(startDate as string, endDate as string, [{ name: "pagePath" }, { name: "eventName" }], "eventCount", {
+          dimensionFilter: {
+            filter: { fieldName: "eventName", inListFilter: { values: ["scroll_75"] } },
+          },
+        }),
+        rep(csd, ced, [{ name: "pagePath" }, { name: "eventName" }], "eventCount", {
+          dimensionFilter: {
+            filter: { fieldName: "eventName", inListFilter: { values: ["scroll_75"] } },
+          },
+        }),
+      ]);
+      return res.status(200).json({
+        sessions: { current: pack(sC.data.rows), previous: pack(sP.data.rows) },
+        scroll75: { current: pack(eC.data.rows), previous: pack(eP.data.rows) },
+      });
+    }
+
     // ===== Mode OVERVIEW (tab Overview): sumber trafik & kota pengunjung =====
     if (String(action || "") === "overview") {
       const range = { startDate: startDate as string, endDate: endDate as string };

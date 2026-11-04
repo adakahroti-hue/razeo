@@ -50,6 +50,7 @@ import ProjectGate from './screens/ProjectGate';
 import PropertyScreen from './screens/PropertyScreen';
 import OverviewTab from './tabs/OverviewTab';
 import KontenTab, { ContentItem } from './tabs/KontenTab';
+import CekTab from './tabs/CekTab';
 import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase: login Google + identitas. Token login dibawa ke API server saat request.
@@ -148,7 +149,10 @@ export default function App() {
   const [expandedEnrichmentPage, setExpandedEnrichmentPage] = useState<string | null>(null);
   const [expandedZeroPage, setExpandedZeroPage] = useState<string | null>(null);
   const [expandedLhfPage, setExpandedLhfPage] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<'overview' | 'dashboard' | 'konten' | 'tracker'>('overview');
+  const [currentTab, setCurrentTab] = useState<'overview' | 'cek' | 'dashboard' | 'konten' | 'tracker'>('overview');
+  // Tab Cek (perbandingan dua periode per halaman)
+  const [cekData, setCekData] = useState<any>(null);
+  const [cekLoading, setCekLoading] = useState(false);
   // Konten (pendataan)
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [contentLoading, setContentLoading] = useState(false);
@@ -1375,6 +1379,37 @@ export default function App() {
     }
   };
 
+  // ===== Tab CEK: bandingkan periode sekarang vs pembanding per halaman =====
+  const loadCek = async (sd = startDate, ed = endDate, cs = compareStartDate, ce = compareEndDate) => {
+    if (!selectedSite) { setCekData(null); return; }
+    setCekLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      if (!('Authorization' in headers)) throw new Error('Sesi tidak terbaca');
+      const qs = `siteUrl=${encodeURIComponent(selectedSite)}&startDate=${sd}&endDate=${ed}&compareStartDate=${cs}&compareEndDate=${ce}`;
+      // GSC: impressions / position / ctr per halaman, dua periode
+      const g = await fetch(`/api/gsc/data?action=compare&${qs}`, { headers });
+      if (!g.ok) throw new Error((await g.json().catch(() => ({})))?.error || `GSC (${g.status})`);
+      const gsc = await g.json();
+      // GA4: sesi + scroll 75% per halaman (opsional tanpa property GA4 → kosong)
+      let sesi: any = { current: [], previous: [] };
+      let scroll75: any = { current: [], previous: [] };
+      const pid = selectedGa4Property?.split('/').pop();
+      if (pid) {
+        try {
+          const a = await fetch(`/api/ga4/data?action=compare&propertyId=${pid}&startDate=${sd}&endDate=${ed}&compareStartDate=${cs}&compareEndDate=${ce}`, { headers });
+          if (a.ok) { const d2 = await a.json(); sesi = d2.sessions; scroll75 = d2.scroll75; }
+        } catch { /* GA4 opsional */ }
+      }
+      setCekData({ gsc, sesi, scroll75 });
+    } catch (e: any) {
+      setCekData(null);
+      setError('Gagal memuat data Cek: ' + (e.message || 'jaringan'));
+    } finally {
+      setCekLoading(false);
+    }
+  };
+
   // ===== Tab KONTEN: daftar/tambah/ubah/hapus =====
   const postContent = async (body: any, okExpected = 200) => {
     const headers = await getAuthHeaders();
@@ -1413,6 +1448,7 @@ export default function App() {
       }
     }
     if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
+    if (viewState === 'dashboard' && currentTab === 'cek') loadCek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewState, currentTab, activeProjectId, isComparing]);
 
@@ -1614,6 +1650,7 @@ export default function App() {
     if (selectedSite && viewState === 'dashboard') {
       if (currentTab === 'dashboard') fetchData(selectedSite);
       if (currentTab === 'overview') loadOverview();
+      if (currentTab === 'cek') loadCek();
     }
   }, [startDate, endDate, compareStartDate, compareEndDate, isComparing, currentTab, viewState, selectedSite]);
 
@@ -2499,6 +2536,15 @@ export default function App() {
                 Overview
               </button>
               <button
+                onClick={() => setCurrentTab('cek')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                  currentTab === 'cek' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                Cek
+              </button>
+              <button
                 onClick={() => setCurrentTab('dashboard')}
                 className={cn(
                   "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
@@ -2529,7 +2575,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {(currentTab === 'dashboard' || currentTab === 'overview') && (
+            {(currentTab === 'dashboard' || currentTab === 'overview' || currentTab === 'cek') && (
               <>
                 {/* Pill rentang tanggal */}
                 <div className="relative hidden md:block">
@@ -2587,8 +2633,9 @@ export default function App() {
                           onClick={() => {
                             setShowDatePop(false);
                             if (!selectedSite) return;
-                            fetchData(selectedSite);
+                            if (currentTab === 'dashboard') fetchData(selectedSite);
                             if (currentTab === 'overview') loadOverview();
+                            if (currentTab === 'cek') loadCek();
                           }}
                           disabled={isFetchingData}
                           className="px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors disabled:opacity-50 text-gray-600"
@@ -2610,6 +2657,18 @@ export default function App() {
 
       <main className="max-w-[1600px] mx-auto p-6">
         <AnimatePresence mode="wait">
+          {currentTab === 'cek' && (
+            <div key="cek">
+              <CekTab
+                loading={cekLoading}
+                data={cekData}
+                startDate={startDate}
+                endDate={endDate}
+                compareStartDate={compareStartDate}
+                compareEndDate={compareEndDate}
+              />
+            </div>
+          )}
           {currentTab === 'overview' && (
             <div key="overview">
               <OverviewTab
@@ -2637,7 +2696,7 @@ export default function App() {
               />
             </div>
           )}
-          {currentTab === 'overview' || currentTab === 'konten' ? null : currentTab === 'dashboard' ? (
+          {currentTab === 'overview' || currentTab === 'konten' || currentTab === 'cek' ? null : currentTab === 'dashboard' ? (
             <motion.div 
               key="dashboard"
               initial={{ opacity: 0, y: 10 }}

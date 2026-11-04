@@ -24,6 +24,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!client) return res.status(401).json({ error: "Token koneksi tidak valid" });
     const searchconsole = google.searchconsole({ version: "v1", auth: client });
 
+    // ===== Mode COMPARE (tab Cek): halaman per periode — sekarang vs pembanding =====
+    if (String(action || "") === "compare") {
+      const csd = String(req.query.compareStartDate || "");
+      const ced = String(req.query.compareEndDate || "");
+      if (!csd || !ced) return res.status(400).json({ error: "compareStartDate & compareEndDate wajib diisi" });
+      const byPage = (sd: string, ed: string) =>
+        searchconsole.searchanalytics.query({
+          siteUrl: siteUrl as string,
+          requestBody: { startDate: sd, endDate: ed, dimensions: ["page"], rowLimit: 100 },
+        });
+      const fmt = (rows: any[]) =>
+        (rows || []).map((r: any) => ({
+          url: r.keys?.[0] || "",
+          clicks: r.clicks ?? 0,
+          impressions: r.impressions ?? 0,
+          ctr: r.ctr ?? 0,
+          position: r.position ?? 0,
+        }));
+      const [cur, prev] = await Promise.all([byPage(startDate as string, endDate as string), byPage(csd, ced)]);
+      return res.status(200).json({ current: fmt(cur.data.rows), previous: fmt(prev.data.rows) });
+    }
+
     // ===== Mode OVERVIEW (tab Overview): top page, top query, rata-rata periode =====
     if (String(action || "") === "overview") {
       const base = { startDate: startDate as string, endDate: endDate as string };
