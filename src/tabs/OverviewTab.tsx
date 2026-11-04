@@ -14,6 +14,8 @@ type Props = {
     topCities: OvRow[];
     totalSessions: number;
     totalSessionsPrev?: number;
+    sesiHarian?: { date: string; sessions: number }[];
+    sesiHarianPrev?: { date: string; sessions: number }[];
   };
   note: string | null;
   startDate: string;
@@ -51,7 +53,7 @@ function Empty({ msg }: { msg: string }) {
 type Col = { id: string; label: string; align?: 'right' };
 
 function SortableTable({
-  cols, rows, cell, maxH = 'max-h-[320px]',
+  cols, rows, cell, maxH = 'max-h-[430px]',
 }: {
   cols: Col[];
   rows: OvRow[];
@@ -135,6 +137,12 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
     const max = Math.max(1, ...vals);
     return { vals, max };
   };
+  // deret sesi harian GA4 — bahan batang kartu "Sesi"
+  const sparkSesi = (() => {
+    const src = ((data as any)?.sesiHarian || []) as any[];
+    const vals = src.slice(-14).map((r) => Number(r?.sessions) || 0);
+    return { vals, max: Math.max(1, ...vals) };
+  })();
 
   // ===== Kartu SKOR — urutan: Average position, Total impressions, Total clicks, Average CTR, Total sessions =====
   const stats = s
@@ -167,7 +175,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
           {/* ===== 5 KARTU SKOR (urutan sesuai permintaan) ===== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             {stats.map((stat, i) => {
-              const { vals, max } = stat.key ? spark(stat.key) : { vals: [] as number[], max: 1 };
+              const { vals, max } = stat.key ? spark(stat.key) : sparkSesi;
               return (
                 <motion.div
                   key={i}
@@ -213,7 +221,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
 
           {/* ===== Top artikel + top query ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Panel title="Artikel Paling Perform" icon={ArrowUpRight} hint="klik panah di kolom untuk urutkan">
+            <Panel title="Artikel Paling Perform" icon={ArrowUpRight}>
               {data.gsc.topPages.length === 0 ? (
                 <Empty msg="Tidak ada artikel pada rentang ini." />
               ) : (
@@ -224,7 +232,13 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                     { id: 'impressions', label: 'Impresi', align: 'right' },
                     { id: 'position', label: 'Pos.', align: 'right' },
                   ]}
-                  rows={data.gsc.topPages}
+                  rows={data.gsc.topPages.filter((rr) => {
+                    const k = rr.key || '';
+                    // bukan artikel nyata: ada '#', atau halaman indeks /blog/ & /page/
+                    if (k.includes('#')) return false;
+                    if (k === 'https://daykit.id/blog/' || k === 'https://daykit.id/blog/page/') return false;
+                    return true;
+                  })}
                   cell={(r, col) => {
                     if (col === 'key') return <span className="text-gray-700 block truncate" title={r.key}>{r.key}</span>;
                     if (col === 'clicks') return <span className="font-bold text-gray-900">{fmtNum(r.clicks)}</span>;
@@ -235,7 +249,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
               )}
             </Panel>
 
-            <Panel title="Query Paling Perform" icon={Target} hint="klik panah di kolom untuk urutkan">
+            <Panel title="Query Paling Perform" icon={Target}>
               {data.gsc.topQueries.length === 0 ? (
                 <Empty msg="Tidak ada query pada rentang ini." />
               ) : (
@@ -265,7 +279,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
               icon={Globe}
               hint={
                 <span className="flex items-center gap-1.5 flex-wrap justify-end">
-                  {(['semua', 'organic', 'referral', 'direct', 'ai'] as const).map((f) => (
+                  {(['semua', 'organic', 'referral', 'ai'] as const).map((f) => (
                     <button
                       key={f}
                       onClick={() => setSrcFilter(f)}
@@ -317,7 +331,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
               })()}
             </Panel>
 
-            <Panel title="Kota Pengunjung Terbanyak" icon={MapPin} hint="GA4 · sesi">
+            <Panel title="Kota Pengunjung Terbanyak" icon={MapPin}>
               {data.topCities.length === 0 ? (
                 <Empty msg="Belum ada data kota pengunjung (perlu property GA4 terpilih)." />
               ) : (
