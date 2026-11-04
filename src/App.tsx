@@ -108,6 +108,20 @@ const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> =
   '/': 'login', '/project': 'project', '/properti': 'select', '/dashboard': 'dashboard',
 };
 
+// Layar buka pertama kali / restore sesi: bar persegi panjang yang terisi berulang
+function BootScreen() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+      <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+        <BarChart3 className="w-5 h-5 text-white" />
+      </div>
+      <div className="w-56 h-2.5 rounded-full bg-gray-200 overflow-hidden shadow-inner">
+        <div className="h-full w-1/3 rounded-full bg-emerald-600 bootbar" />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -1719,22 +1733,10 @@ export default function App() {
     }
   }, [startDate, endDate, compareStartDate, compareEndDate, isComparing, currentTab, viewState, selectedSite]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <BootScreen />;
 
   // user sudah ada tapi halaman belum diputuskan (restore sedang jalan) → loader, bukan landing
-  if (viewState === 'login' && user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-      </div>
-    );
-  }
+  if (viewState === 'login' && user) return <BootScreen />;
 
   if (viewState === 'login') {
     return (

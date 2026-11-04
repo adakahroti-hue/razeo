@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Bar loading persegi panjang untuk layar buka pertama kali */
+@keyframes bootbar {
+  0% { transform: translateX(-100%); }
+  55% { transform: translateX(15%); }
+  100% { transform: translateX(120%); }
+}
+.bootbar {
+  animation: bootbar 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
