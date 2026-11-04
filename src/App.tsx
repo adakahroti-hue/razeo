@@ -56,8 +56,6 @@ const supabase = createClient(
   ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || 'placeholder'
 );
 
-// HOOK DEBUG (sementara) — inspeksi dari console browser
-(window as any).__razeo = { supabase };
 
 // Types
 interface GSCRow {
@@ -1266,14 +1264,13 @@ export default function App() {
     try {
       // Satu permintaan saja: daftar project sudah menyertakan gsc_site/ga4_property
       // per project (lihat listProjects di shared) — tanpa langkah tambahan yang bisa gagal.
-      localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step: 'start' }));
       const headers = await getAuthHeaders();
-      if (!('Authorization' in headers)) { localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step: 'no-auth' })); return false; }
+      if (!('Authorization' in headers)) { return false; }
       const res = await fetch('/api/projects', { headers });
-      if (!res.ok) { localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step: 'http-' + res.status })); return false; }
+      if (!res.ok) { return false; }
       const d = await res.json();
       const list: any[] = d.projects || [];
-      if (list.length === 0) { localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step: 'empty-list' })); return false; }
+      if (list.length === 0) { return false; }
       // prioritas: project terakhir dipakai (yang sudah connect) → project mana pun
       // yang sudah connect → kalau tidak ada satupun, kembali ke gerbang.
       const saved = localStorage.getItem('razeo_project');
@@ -1282,10 +1279,7 @@ export default function App() {
         list.find((pp) => pp.gsc_site) ||
         list.find((pp) => pp.id === saved) ||
         list[0];
-      const dbg = (step: string, extra: any = {}) =>
-        localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step, saved, n: list.length, gsc: list.map((pp) => pp.gsc_site), chosen: proj.id, ...extra }));
-      dbg('checked');
-      if (!proj.gsc_site) { dbg('no-gsc'); return false; } // tidak ada project tersambung → gerbang dulu
+        if (!proj.gsc_site) { return false; } // tidak ada project tersambung → gerbang dulu
       localStorage.setItem('razeo_project', proj.id);
       setActiveProjectId(proj.id);
       setProjectRole(proj.role ?? null);
@@ -1293,7 +1287,6 @@ export default function App() {
       setSelectedSite(proj.gsc_site);
       setSelectedGa4Property(proj.ga4_property ?? null);
       setViewState('dashboard');
-      localStorage.setItem('razeo_restore_dbg', JSON.stringify({ ts: Date.now(), step: 'OK', chosen: proj.id }));
       fetchData(proj.gsc_site); // isi data (spinner kartu yang menandai proses)
       return true;
     } catch {
