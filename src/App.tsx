@@ -1306,8 +1306,8 @@ export default function App() {
   useEffect(() => {
     // sebelum status login diketahui, URL yang diminta user dipertahankan
     // (mis. membuka /dashboard langsung — jangan diubah ke '/' dulu)
-    if (viewState === 'login' && !user && !bootedRef.current) {
-      return; // tahan dulu — transisi pertama nanti tetap replaceState
+    if (viewState === 'login') {
+      return; // selama status login belum diputuskan, URL TIDAK disentuh sama sekali
     }
     const path = VIEW_PATHS[viewState] ?? '/';
     if (window.location.pathname === path) { bootedRef.current = true; return; }
@@ -1332,14 +1332,9 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // PENGAMAN: selama user terdeteksi, layar login/landing TIDAK boleh tampil —
-  // langsung buka gerbang project; restore di bawah akan menariknya ke dashboard.
-  useEffect(() => {
-    if (user && viewStateRef.current === 'login') {
-      viewStateRef.current = 'project';
-      setViewState('project');
-    }
-  }, [user, viewState]);
+  // (Perpindahan pengaman dihapus — jumpa di render: selama user ada dan layar
+  // masih 'login', yang tampil loader, BUKAN landing dan BUKAN perpindahan view.
+  // Layar final diputuskan restoreSessionToDashboard di bawah.)
 
   useEffect(() => {
     if (user) {
@@ -1507,6 +1502,15 @@ export default function App() {
   }, [startDate, endDate, compareStartDate, compareEndDate, isComparing]);
 
   if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
+      </div>
+    );
+  }
+
+  // user sudah ada tapi halaman belum diputuskan (restore sedang jalan) → loader, bukan landing
+  if (viewState === 'login' && user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
