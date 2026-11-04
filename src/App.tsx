@@ -1354,6 +1354,7 @@ export default function App() {
       let totalSessions = 0;
       let totalSessionsPrev = 0;
       let sesiHarian: any[] = [];
+      let sesiPeriod: any[] = [];
       let sesiHarianPrev: any[] = [];
       let topBrowsers: any[] = [];
       let topOss: any[] = [];
@@ -1372,6 +1373,7 @@ export default function App() {
             topDevices = da.topDevices || [];
             totalSessions = da.totalSessions || 0;
             sesiHarian = da.sesiHarian || [];
+            sesiPeriod = da.sesiPeriod || [];
             // sesi periode pembanding (kartu Sesi saat Compare + diagram pembanding tidak di bahas)
             if (isComparing) {
               try {
@@ -1390,7 +1392,7 @@ export default function App() {
       } else {
         ga4Note = 'Sumber trafik & kota menampilkan — sambungkan property GA4 dulu.';
       }
-      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions, totalSessionsPrev, sesiHarian, sesiHarianPrev, topBrowsers, topOss, topDevices });
+      setOvData({ gsc, gscPrev, topSources, topCities, totalSessions, totalSessionsPrev, sesiHarian, sesiPeriod, sesiHarianPrev, topBrowsers, topOss, topDevices });
       setOvNote(ga4Note);
     } catch (e: any) {
       setOvData(null);

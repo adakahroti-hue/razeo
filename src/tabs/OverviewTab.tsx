@@ -8,13 +8,14 @@ type OvRow = { key: string; clicks?: number; impressions?: number; ctr?: number;
 type Props = {
   loading: boolean;
   data: null | {
-    gsc: { summary: any; topPages: OvRow[]; topQueries: OvRow[]; timeSeries?: any[] };
+    gsc: { summary: any; topPages: OvRow[]; topQueries: OvRow[]; timeSeries?: any[]; periodSeries?: { start: string; end: string; clicks: number; impressions: number; ctr: number; position: number }[] };
     gscPrev: any;
     topSources: OvRow[];
     topCities: OvRow[];
     totalSessions: number;
     totalSessionsPrev?: number;
     sesiHarian?: { date: string; sessions: number }[];
+    sesiPeriod?: number[];
     sesiHarianPrev?: { date: string; sessions: number }[];
     topBrowsers?: OvRow[];
     topOss?: OvRow[];
@@ -134,6 +135,20 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
   const fmtNum = (n: number | undefined | null) =>
     (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}K` : String(n ?? 0);
 
+  // ===== 7 periode ke belakang (pemakaian ulang untuk tooltip) =====
+  // Panjang 1 periode = panjang rentang tanggal yang di-set user; batang kiri
+  // = periode paling tua, batang kanan = periode paling baru (sekarang).
+  const periodeLabels = (() => {
+    const ms = 86400000;
+    const toMs = (d: string) => new Date(`${d}T00:00:00Z`).getTime();
+    const per = Math.min(Math.max(1, Math.round((toMs(endDate) - toMs(startDate)) / ms) + 1), 365);
+    const shift = (d: string, n: number) => new Date(toMs(d) + n * ms).toISOString().slice(0, 10);
+    return Array.from({ length: 7 }, (_, i) => {
+      const lag = 6 - i;
+      return `${fmtDate(shift(startDate, -lag * per))} → ${fmtDate(shift(endDate, -lag * per))}`;
+    });
+  })();
+
   const timeSeries = data?.gsc?.timeSeries || [];
 
   // Kelompokkan deret harian menjadi 7 periode setara — tiap batang = satu bagian
@@ -159,12 +174,23 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
     const max = Math.max(1, ...vals);
     return { vals, max };
   };
-  // deret sesi harian GA4 → juga 7 periode
-  const sparkSesi = (() => {
+  // ambil deret batang 7 periode — sumber utama: deret asli dari server
+  // (periodSeries GSC / sesiPeriod GA4). Fallback: bucketize harian lama.
+  const bars = (stat: any): { vals: number[]; max: number } => {
+    const ps = data?.gsc?.periodSeries;
+    if (stat.key === '' && Array.isArray(data?.sesiPeriod) && data.sesiPeriod!.length > 0) {
+      const vals = data.sesiPeriod!;
+      return { vals, max: Math.max(1, ...vals) };
+    }
+    if (stat.key && Array.isArray(ps) && ps.length > 0) {
+      const vals = ps.map((p: any) => Number(p[stat.key]) || 0);
+      return { vals, max: Math.max(1, ...vals) };
+    }
+    if (stat.key) return spark(stat.key);
     const src = ((data as any)?.sesiHarian || []) as any[];
     const vals = bucketize(src, 'sessions');
     return { vals, max: Math.max(1, ...vals) };
-  })();
+  };
 
   // ===== Kartu SKOR — urutan: Average position, Total impressions, Total clicks, Average CTR, Total sessions =====
   const stats = s
@@ -197,7 +223,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
           {/* ===== 5 KARTU SKOR (urutan sesuai permintaan) ===== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             {stats.map((stat, i) => {
-              const { vals, max } = stat.key ? spark(stat.key) : sparkSesi;
+              const { vals, max } = bars(stat);
               return (
                 <motion.div
                   key={i}
@@ -229,6 +255,7 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                         {vals.map((v: number, k: number) => (
                           <div
                             key={k}
+                            title={periodeLabels[k] || ''}
                             className={cn("w-1.5 rounded-sm", stat.sparkCls, "opacity-70")}
                             style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
                           />

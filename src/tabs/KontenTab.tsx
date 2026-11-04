@@ -6,6 +6,7 @@ import { cn } from '../lib/utils';
 export type ContentItem = {
   id: string;
   kategori: string | null;
+  meta_deskripsi: string | null;
   target_keyword: string | null;
   judul: string;
   tanggal_publikasi: string | null;
@@ -32,6 +33,7 @@ const prioritasStyle: Record<string, string> = {
 
 const kosong = {
   kategori: '',
+  meta_deskripsi: '',
   target_keyword: '',
   judul: '',
   tanggal_publikasi: '',
@@ -53,6 +55,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
     setBusy(true);
     const ok = await onAdd({
       kategori: draft.kategori.trim() || null,
+      meta_deskripsi: draft.meta_deskripsi.trim() || null,
       target_keyword: draft.target_keyword.trim() || null,
       judul: draft.judul.trim(),
       tanggal_publikasi: draft.tanggal_publikasi || null,
@@ -66,7 +69,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
 
   const startEdit = (it: ContentItem) => {
     setEditingId(it.id);
-    setEdit({ kategori: it.kategori, target_keyword: it.target_keyword, judul: it.judul, tanggal_publikasi: it.tanggal_publikasi, link_artikel: it.link_artikel, peran: it.peran, prioritas: it.prioritas });
+    setEdit({ kategori: it.kategori, meta_deskripsi: it.meta_deskripsi, target_keyword: it.target_keyword, judul: it.judul, tanggal_publikasi: it.tanggal_publikasi, link_artikel: it.link_artikel, peran: it.peran, prioritas: it.prioritas });
   };
 
   const saveEdit = async (id: string) => {
@@ -108,6 +111,9 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
             <label className="text-xs font-bold text-gray-500">Judul *
               <input value={draft.judul} onChange={(e) => setDraft({ ...draft, judul: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Judul artikel" />
             </label>
+            <label className="text-xs font-bold text-gray-500 sm:col-span-2">Meta Deskripsi
+              <input value={draft.meta_deskripsi} onChange={(e) => setDraft({ ...draft, meta_deskripsi: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Deskripsi untuk mesin pencari (opsional)" />
+            </label>
             <label className="text-xs font-bold text-gray-500">Kategori
               <input value={draft.kategori} onChange={(e) => setDraft({ ...draft, kategori: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Blog / Landing…" />
             </label>
@@ -145,10 +151,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
 
       {/* tabel data */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full text-left text-sm min-w-[960px]">
+        <table className="w-full text-left text-sm min-w-[1140px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Kategori', 'Judul', 'Target Keyword', 'Tgl. Publikasi', 'Link', 'Role', 'Prioritas', 'Aksi'].map((h) => (
+              {['Kategori', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Prioritas', 'Aksi'].map((h) => (
                 <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400">{h}</th>
               ))}
             </tr>
@@ -156,13 +162,13 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
           <tbody className="divide-y divide-gray-50">
             {/* baris form menempel di atas kalau terbuka */}
             <tr className="hidden">
-              <td colSpan={8} />
+              <td colSpan={9} />
             </tr>
             {loading && items.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat…</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik <b>"Tambah Konten"</b> untuk mulai pendataan.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik <b>"Tambah Konten"</b> untuk mulai pendataan.</td></tr>
             )}
             {items.map((it) => {
               const editing = editingId === it.id;
@@ -175,11 +181,11 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                       <span className="text-xs text-gray-600">{it.kategori || '—'}</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 max-w-[240px]">
+                  <td className="px-4 py-2.5">
                     {editing ? (
-                      <input value={String(edit.judul ?? '')} onChange={(e) => setEdit({ ...edit, judul: e.target.value })} className={cellInput} />
+                      <input value={String(edit.peran ?? '')} onChange={(e) => setEdit({ ...edit, peran: e.target.value })} className={cellInput} />
                     ) : (
-                      <span className="font-semibold text-gray-800 block truncate" title={it.judul}>{it.judul}</span>
+                      <span className="flex items-center gap-1.5 text-gray-600 text-xs"><User className="w-3 h-3 text-gray-300" />{it.peran || '—'}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 max-w-[200px]">
@@ -187,6 +193,20 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                       <input value={String(edit.target_keyword ?? '')} onChange={(e) => setEdit({ ...edit, target_keyword: e.target.value })} className={cellInput} />
                     ) : (
                       <span className="flex items-center gap-1.5 text-gray-600 truncate"><Tag className="w-3 h-3 text-gray-300" />{it.target_keyword || '—'}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 max-w-[240px]">
+                    {editing ? (
+                      <input value={String(edit.judul ?? '')} onChange={(e) => setEdit({ ...edit, judul: e.target.value })} className={cellInput} />
+                    ) : (
+                      <span className="font-semibold text-gray-800 block truncate" title={it.judul}>{it.judul}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 max-w-[240px]">
+                    {editing ? (
+                      <input value={String(edit.meta_deskripsi ?? '')} onChange={(e) => setEdit({ ...edit, meta_deskripsi: e.target.value })} className={cellInput} placeholder="Meta deskripsi..." />
+                    ) : (
+                      <span className="text-xs text-gray-500 block truncate" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5">
@@ -205,13 +225,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                       </a>
                     ) : (
                       <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {editing ? (
-                      <input value={String(edit.peran ?? '')} onChange={(e) => setEdit({ ...edit, peran: e.target.value })} className={cellInput} />
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-gray-600 text-xs"><User className="w-3 h-3 text-gray-300" />{it.peran || '—'}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5">

@@ -110,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           project_id: info.projectId,
           uid: user.uid,
           kategori: body.kategori ? String(body.kategori).trim().slice(0, 80) : null,
+          meta_deskripsi: body.meta_deskripsi ? String(body.meta_deskripsi).trim().slice(0, 320) : null,
           target_keyword: body.target_keyword ? String(body.target_keyword).trim().slice(0, 200) : null,
           judul: String(body.judul || "").trim().slice(0, 300),
           tanggal_publikasi: body.tanggal_publikasi ? String(body.tanggal_publikasi).slice(0, 10) : null,
@@ -135,6 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!id) return res.status(400).json({ error: "id wajib diisi" });
         const patchRow: any = { updated_at: new Date().toISOString() };
         if (body.kategori !== undefined) patchRow.kategori = body.kategori ? String(body.kategori).trim() : null;
+        if (body.meta_deskripsi !== undefined) patchRow.meta_deskripsi = body.meta_deskripsi ? String(body.meta_deskripsi).trim() : null;
         if (body.target_keyword !== undefined) patchRow.target_keyword = body.target_keyword ? String(body.target_keyword).trim() : null;
         if (body.judul !== undefined) patchRow.judul = String(body.judul || "").trim();
         if (body.tanggal_publikasi !== undefined) patchRow.tanggal_publikasi = body.tanggal_publikasi || null;

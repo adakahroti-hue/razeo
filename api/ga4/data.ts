@@ -147,6 +147,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sessions: Number(r.metricValues?.[0]?.value || 0),
         }))
         .sort((x: any, y: any) => String(x.date).localeCompare(String(y.date)));
+      // ===== 7 periode ke belakang (kartu Sesi di Overview) =====
+      // Deret harian dibentangkan 6×panjang-periode sebelum startDate → dipecah
+      // jadi 7 blok (tua → baru). Rata-rata per hari per blok supaya rentang
+      // panjang tidak membuat batang membengkak.
+      const MS_DAY = 86400000;
+      const pToMs = (iso: string) => new Date(`${iso}T00:00:00Z`).getTime();
+      const pShift = (iso: string, n: number) => new Date(pToMs(iso) + n * MS_DAY).toISOString().slice(0, 10);
+      const perLen = Math.min(Math.max(1, Math.round((pToMs(range.endDate) - pToMs(range.startDate)) / MS_DAY) + 1), 365);
+      const wideStartSesi = [
+        pShift(range.startDate, -6 * perLen),
+        pShift(range.endDate, -420), // GA4 riwayat default ±14 bulan
+      ].sort()[1];
+      let sesiWide: any[] = [];
+      try {
+        const w = await analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [{ startDate: wideStartSesi, endDate: range.endDate }],
+            dimensions: [{ name: "date" }],
+            metrics: [{ name: "sessions" }],
+          },
+        });
+        sesiWide = (w.data.rows || []).map((r: any) => ({
+          date: r.dimensionValues?.[0]?.value || "",
+          sessions: Number(r.metricValues?.[0]?.value || 0),
+        }));
+      } catch { /* deret lanjutan opsional — kalau gagal, kartu pakai deret periode ini */ }
+      const sesiByDate = new Map<string, number>(sesiWide.map((r: any) => [r.date, r.sessions]));
+      const sesiPeriod = Array.from({ length: 7 }, (_, i) => {
+        const pStart = pShift(range.startDate, -(6 - i) * perLen);
+        const pEnd = pShift(range.endDate, -(6 - i) * perLen);
+        let total = 0, found = 0;
+        for (let t = pToMs(pStart); t <= pToMs(pEnd); t += MS_DAY) {
+          const key = new Date(t).toISOString().slice(0, 10);
+          if (sesiByDate.has(key)) { total += sesiByDate.get(key)!; found++; }
+        }
+        if (i === 6 && found === 0) return totalSessions; // fallback: total resmi periode ini
+        return found > 0 ? Math.round(total / found) : 0;  // rata-rata per hari
+      });
       const pack = (rows: any[]) =>
         (rows || []).map((r: any) => ({
           key: (r.dimensionValues || []).map((d: any) => d.value).filter(Boolean).join(" / "), // untuk kota: "Jakarta"
@@ -167,6 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         topDevices: pack(deviceRes.data.rows),
         totalSessions,
         sesiHarian,
+        sesiPeriod,                              // rata-rata sesi/hari × 7 periode ke belakang
       });
     }
     const response = await analyticsdata.properties.runReport({
