@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Activity, BarChart3, ArrowDown, ArrowUp, MousePointer2, ScanLine, MapPin } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -8,6 +8,8 @@ type Pair = { url: string; value: number };
 
 type Props = {
   loading: boolean;
+  kind: Kind;
+  onKind: (k: Kind) => void;
   data: null | {
     gsc: { current: GscRow[]; previous: GscRow[] };
     sesi: { current: Pair[]; previous: Pair[] };
@@ -15,9 +17,10 @@ type Props = {
   };
 };
 
-type Kind = 'impressi' | 'posisi' | 'klik' | 'sesi' | 'scroll';
+export type Kind = 'impressi' | 'posisi' | 'klik' | 'sesi' | 'scroll';
 
-const KINDS: { id: Kind; label: string; icon: any }[] = [
+// daftar jenis data — tombolnya ada di SIDEBAR (App.tsx), jadi ikut diekspor
+export const KINDS: { id: Kind; label: string; icon: any }[] = [
   { id: 'impressi', label: 'Impresi', icon: MapPin },
   { id: 'posisi', label: 'Posisi', icon: BarChart3 },
   { id: 'klik', label: 'Klik', icon: MousePointer2 },
@@ -82,9 +85,10 @@ function DeltaBadge({ value, inverse = false, raw, extra, digits = 2 }: { value:
   );
 }
 
-export default function CekTab({ loading, data }: Props) {
-  const [kind, setKind] = useState<Kind>('impressi');
+export default function CekTab({ loading, data, kind, onKind }: Props) {
   const [sort, setSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
+  // ganti jenis data dari sidebar → urutan kolom lama tak relevan lagi
+  useEffect(() => { setSort(null); }, [kind]);
 
   // gabung dua periode jadi satu daftar URL
   const rows = useMemo(() => {
@@ -208,24 +212,9 @@ export default function CekTab({ loading, data }: Props) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* sub-tab jenis data */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {KINDS.map((k) => (
-          <button
-            key={k.id}
-            onClick={() => { setKind(k.id); setSort(null); }}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all',
-              kind === k.id
-                ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/25'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'
-            )}
-          >
-            <k.icon className={cn('w-4 h-4', kind === k.id ? 'text-white' : 'text-gray-400')} />
-            {k.label}
-          </button>
-        ))}
-        <span className="ml-auto text-[11px] font-bold text-gray-400 uppercase">{rows.length} URL</span>
+      {/* jenis data (Impresi/Posisi/Klik/Sesi/Scroll) dipilih dari sidebar; sini cuma info jumlah */}
+      <div className="flex items-center justify-end">
+        <span className="text-[11px] font-bold text-gray-400 uppercase">{rows.length} URL</span>
       </div>
 
       {/* tabel */}
@@ -248,7 +237,7 @@ export default function CekTab({ loading, data }: Props) {
                 ))}
               </tr>
             </thead>
-            <tbody className="block overflow-y-auto max-h-[560px]">
+            <tbody className="block overflow-y-auto max-h-[calc(100vh-16rem)]">
               {loading && rows.length === 0 && (
                 <tr className="grid grid-cols-[2.5rem_2fr_1fr_1fr_1fr_1fr]">
                   <td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Memuat…</td>

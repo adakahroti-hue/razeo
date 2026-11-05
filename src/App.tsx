@@ -17,6 +17,8 @@ import {
   History,
   LogOut,
   MousePointer2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Search,
@@ -51,7 +53,7 @@ import ProjectGate from './screens/ProjectGate';
 import PropertyScreen from './screens/PropertyScreen';
 import OverviewTab from './tabs/OverviewTab';
 import KontenTab, { ContentItem } from './tabs/KontenTab';
-import CekTab from './tabs/CekTab';
+import CekTab, { KINDS, Kind } from './tabs/CekTab';
 import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase: login Google + identitas. Token login dibawa ke API server saat request.
@@ -246,6 +248,11 @@ export default function App() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
+  // sidebar bisa di-hide/show (pilihan disimpan di perangkat ini)
+  const [sideOpen, setSideOpen] = useState<boolean>(() => localStorage.getItem('razeo_side') !== '0');
+  const toggleSide = () => setSideOpen((v) => { localStorage.setItem('razeo_side', v ? '0' : '1'); return !v; });
+  // jenis data Tab Cek — tombolnya di sub-bagian sidebar (+ chip khusus HP)
+  const [cekKind, setCekKind] = useState<Kind>('impressi');
 
   const getAuthHeaders = async () => {
     const { data } = await supabase.auth.getSession();
@@ -2597,7 +2604,12 @@ export default function App() {
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
-
+              {!sideOpen && (
+                <button onClick={toggleSide} title="Tampilkan sidebar" aria-label="Tampilkan sidebar"
+                  className="hidden md:inline-flex p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-gray-50 transition-colors">
+                  <PanelLeftOpen className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
           </div>
@@ -2605,60 +2617,6 @@ export default function App() {
           <div className="flex items-center gap-3 shrink-0">
             {(currentTab === 'dashboard' || currentTab === 'overview' || currentTab === 'cek') && (
               <>
-                {/* Pengaturan nama event (scroll/CTA) */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowEvPop(!showEvPop)}
-                    className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors text-gray-600 shadow-sm"
-                    title="Atur nama event scroll & CTA"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                  {showEvPop && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-[60] space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Nama Event Scroll</span>
-                        <button onClick={() => setShowEvPop(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                      </div>
-                      {(['scroll25', 'scroll50', 'scroll75'] as const).map((k) => (
-                        <label key={k} className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                          {k.replace('scroll', 'Scroll ')}%
-                          <input
-                            value={evCfg[k]}
-                            onChange={(e) => saveEv({ ...evCfg, [k]: e.target.value.trim() })}
-                            className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                          />
-                        </label>
-                      ))}
-                      <div className="border-t border-gray-100 pt-3 space-y-2">
-                        <span className="block text-[11px] font-black uppercase tracking-wider text-gray-400">Event CTA (boleh lebih dari satu)</span>
-                        {evCfg.ctas.map((ev: string, i: number) => (
-                          <div key={i} className="flex items-center gap-1.5">
-                            <input
-                              value={ev}
-                              onChange={(e) => saveEv({ ...evCfg, ctas: evCfg.ctas.map((x: string, j: number) => (j === i ? e.target.value.trim() : x)) })}
-                              className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                            />
-                            <button
-                              onClick={() => saveEv({ ...evCfg, ctas: evCfg.ctas.filter((_: string, j: number) => j !== i) })}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                              title="Hapus event"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => saveEv({ ...evCfg, ctas: [...evCfg.ctas, ''] })}
-                          className="w-full py-2 border border-dashed border-emerald-300 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors"
-                        >
-                          + Tambah Event CTA
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-gray-400">Simpan otomatis — tab Optimasi & Cek langsung memakainya.</p>
-                    </div>
-                  )}
-                </div>
                 {/* Pill rentang tanggal */}
                 <div className="relative hidden md:block">
                   <button
@@ -2738,8 +2696,14 @@ export default function App() {
       </header>
 
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
+      {sideOpen && (
       <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-40 overflow-y-auto">
-        <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 mb-2">Menu</span>
+        <div className="flex items-center justify-between px-2 mb-2">
+          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Menu</span>
+          <button onClick={toggleSide} title="Sembunyikan sidebar" aria-label="Sembunyikan sidebar" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+        </div>
         <nav className="space-y-1">
           {TAB_LIST.map((t) => (
             <button
@@ -2757,10 +2721,97 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        {/* sub-bagian Cek: jenis data (ganti tombol chip yang tadinya di tab Cek) */}
+        {currentTab === 'cek' && (
+          <div className="mt-5 pt-4 border-t border-gray-100">
+            <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 block mb-2">Jenis Data Cek</span>
+            <div className="space-y-1">
+              {KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  onClick={() => setCekKind(k.id)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-bold transition-all text-left",
+                    cekKind === k.id
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "text-gray-600 hover:bg-gray-50 border border-transparent"
+                  )}
+                >
+                  <k.icon className={cn("w-4 h-4", cekKind === k.id ? "text-emerald-600" : "text-gray-400")} />
+                  {k.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* pengaturan selalu di bagian bawah sidebar */}
+        <div className="mt-auto pt-4 border-t border-gray-100">
+          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 block mb-2">Pengaturan</span>
+  {/* Pengaturan nama event (scroll/CTA) */}
+          <div>
+            <button
+              onClick={() => setShowEvPop(!showEvPop)}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:border-emerald-300 hover:text-emerald-700 transition-colors text-left"
+              title="Atur nama event scroll & CTA"
+  >
+              Pengaturan Event
+              <Settings className="w-4 h-4" />
+            </button>
+            {showEvPop && (
+              <div className="fixed left-56 bottom-4 w-80 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-[60] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Nama Event Scroll</span>
+                  <button onClick={() => setShowEvPop(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                </div>
+                {(['scroll25', 'scroll50', 'scroll75'] as const).map((k) => (
+                  <label key={k} className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                    {k.replace('scroll', 'Scroll ')}%
+                    <input
+                      value={evCfg[k]}
+                      onChange={(e) => saveEv({ ...evCfg, [k]: e.target.value.trim() })}
+                      className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                    />
+                  </label>
+                ))}
+                <div className="border-t border-gray-100 pt-3 space-y-2">
+                  <span className="block text-[11px] font-black uppercase tracking-wider text-gray-400">Event CTA (boleh lebih dari satu)</span>
+                  {evCfg.ctas.map((ev: string, i: number) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <input
+                        value={ev}
+                        onChange={(e) => saveEv({ ...evCfg, ctas: evCfg.ctas.map((x: string, j: number) => (j === i ? e.target.value.trim() : x)) })}
+                        className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        onClick={() => saveEv({ ...evCfg, ctas: evCfg.ctas.filter((_: string, j: number) => j !== i) })}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Hapus event"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => saveEv({ ...evCfg, ctas: [...evCfg.ctas, ''] })}
+                    className="w-full py-2 border border-dashed border-emerald-300 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors"
+                  >
+                    + Tambah Event CTA
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400">Simpan otomatis — tab Optimasi & Cek langsung memakainya.</p>
+              </div>
+            )}
+          </div>
+        
+
+        </div>
       </aside>
+      )}
 
       {/* isi halaman (tergeser kanan oleh sidebar di layar md+) */}
-      <div className="md:pl-56">
+      <div className={sideOpen ? 'md:pl-56' : ''}>
       {/* strip tab — hanya layar kecil */}
       <nav className="md:hidden sticky top-16 z-40 bg-white/90 backdrop-blur border-b border-gray-200 px-3 py-2 flex items-center gap-1 overflow-x-auto">
         {TAB_LIST.map((t) => (
@@ -2777,11 +2828,32 @@ export default function App() {
         ))}
       </nav>
 
+      {/* jenis data Tab Cek — khusus layar kecil (sidebar tidak tampil di mobile) */}
+      {currentTab === 'cek' && (
+        <div className="md:hidden sticky top-[6.3rem] z-30 bg-gray-50/95 backdrop-blur px-3 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-gray-200">
+          {KINDS.map((k) => (
+            <button
+              key={k.id}
+              onClick={() => setCekKind(k.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap",
+                cekKind === k.id
+                  ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300"
+              )}
+            >
+              <k.icon className={cn("w-3.5 h-3.5", cekKind === k.id ? "text-white" : "text-gray-400")} />
+              {k.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <main className="max-w-[1600px] mx-auto p-6">
         <AnimatePresence mode="wait">
           {currentTab === 'cek' && (
             <div key="cek">
-              <CekTab loading={cekLoading} data={cekData} />
+              <CekTab loading={cekLoading} data={cekData} kind={cekKind} onKind={setCekKind} />
             </div>
           )}
           {currentTab === 'overview' && (
