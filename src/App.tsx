@@ -251,7 +251,7 @@ export default function App() {
   // sidebar bisa di-hide/show (pilihan disimpan di perangkat ini)
   const [sideOpen, setSideOpen] = useState<boolean>(() => localStorage.getItem('razeo_side') !== '0');
   const toggleSide = () => setSideOpen((v) => { localStorage.setItem('razeo_side', v ? '0' : '1'); return !v; });
-  // jenis data Tab Cek — tombolnya di sub-bagian sidebar (+ chip khusus HP)
+  // jenis data Tab Cek — tombolnya di header (chip HP: strip khusus layar kecil)
   const [cekKind, setCekKind] = useState<Kind>('impressi');
 
   const getAuthHeaders = async () => {
@@ -2612,6 +2612,27 @@ export default function App() {
               )}
             </div>
 
+            {/* Tab Cek: tombol jenis data (Impresi/Posisi/Klik/Sesi/Scroll) di header */}
+            {currentTab === 'cek' && (
+              <div className="hidden md:flex items-center gap-1.5 min-w-0 overflow-x-auto">
+                {KINDS.map((k) => (
+                  <button
+                    key={k.id}
+                    onClick={() => setCekKind(k.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap",
+                      cekKind === k.id
+                        ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300"
+                    )}
+                  >
+                    <k.icon className={cn("w-3.5 h-3.5", cekKind === k.id ? "text-white" : "text-gray-400")} />
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -2721,30 +2742,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-
-        {/* sub-bagian Cek: jenis data (ganti tombol chip yang tadinya di tab Cek) */}
-        {currentTab === 'cek' && (
-          <div className="mt-5 pt-4 border-t border-gray-100">
-            <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 block mb-2">Jenis Data Cek</span>
-            <div className="space-y-1">
-              {KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  onClick={() => setCekKind(k.id)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-bold transition-all text-left",
-                    cekKind === k.id
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : "text-gray-600 hover:bg-gray-50 border border-transparent"
-                  )}
-                >
-                  <k.icon className={cn("w-4 h-4", cekKind === k.id ? "text-emerald-600" : "text-gray-400")} />
-                  {k.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* pengaturan selalu di bagian bawah sidebar */}
         <div className="mt-auto pt-4 border-t border-gray-100">
