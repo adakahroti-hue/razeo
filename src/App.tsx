@@ -26,6 +26,7 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  UserPlus,
   X
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -2801,7 +2802,16 @@ export default function App() {
               </div>
             )}
           </div>
-        
+
+          {/* Anggota project — pindahan dari sidebar proyek (tab Optimasi) */}
+          <button
+            onClick={handleOpenInvite}
+            className="mt-2 w-full flex items-center gap-2.5 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:border-emerald-300 hover:text-emerald-700 transition-colors text-left"
+            title="Undang anggota ke project"
+          >
+            Anggota
+            <UserPlus className="w-4 h-4" />
+          </button>
 
         </div>
       </aside>
@@ -2953,14 +2963,6 @@ export default function App() {
                       <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
                       <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
-                    </button>
-
-                    <button
-                      onClick={handleOpenInvite}
-                      className="w-full py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors"
-                      title="Undang anggota ke project"
-                    >
-                      + Undang Anggota
                     </button>
 
                     <div className="flex items-center gap-3 pt-1">
