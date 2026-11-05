@@ -2747,6 +2747,36 @@ export default function App() {
         {/* pengaturan selalu di bagian bawah sidebar */}
         <div className="mt-auto pt-4 border-t border-gray-100">
           <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 px-2 block mb-2">Pengaturan</span>
+
+          {/* Pilih project & properti — pindahan dari sidebar proyek (tab Optimasi) */}
+          {projects.length > 0 && (
+                                <select
+                                  value={activeProjectId ?? ''}
+                                  onChange={(e) => {
+                                    const pid = e.target.value;
+                                    const chosen = projects.find((pp) => pp.id === pid);
+                                    localStorage.setItem('razeo_project', pid);
+                                    setActiveProjectId(pid);
+                                    if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
+                                  }}
+                                  className="w-full text-sm font-bold bg-white border border-gray-200 rounded-xl px-3 py-2.5 truncate focus:outline-none focus:border-emerald-500"
+                                  title="Ganti project"
+                                >
+                                  {projects.map((pp) => (
+                                    <option key={pp.id} value={pp.id}>{pp.name}</option>
+                                  ))}
+                                </select>
+                              )}
+
+                              <button
+                                onClick={() => setViewState('select')}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm hover:border-emerald-300 transition-colors"
+                                title="Ganti property Search Console / GA4"
+                              >
+                                <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
+                                <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
+                              </button>
   {/* Pengaturan nama event (scroll/CTA) */}
           <div>
             <button
@@ -2936,36 +2966,7 @@ export default function App() {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-gray-200 space-y-2.5">
-                    {projects.length > 0 && (
-                      <select
-                        value={activeProjectId ?? ''}
-                        onChange={(e) => {
-                          const pid = e.target.value;
-                          const chosen = projects.find((pp) => pp.id === pid);
-                          localStorage.setItem('razeo_project', pid);
-                          setActiveProjectId(pid);
-                          if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
-                        }}
-                        className="w-full text-sm font-bold bg-white border border-gray-200 rounded-xl px-3 py-2.5 truncate focus:outline-none focus:border-emerald-500"
-                        title="Ganti project"
-                      >
-                        {projects.map((pp) => (
-                          <option key={pp.id} value={pp.id}>{pp.name}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    <button
-                      onClick={() => setViewState('select')}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm hover:border-emerald-300 transition-colors"
-                      title="Ganti property Search Console / GA4"
-                    >
-                      <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
-                    </button>
-
-                    <div className="flex items-center gap-3 pt-1">
+                                        <div className="flex items-center gap-3 pt-1">
                       <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
                         {initials}
                       </div>
