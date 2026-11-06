@@ -121,14 +121,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
               <tr key={it.id} className="hover:bg-gray-50/60 align-top">
                 <td className="px-4 py-2.5"><span className="text-xs text-gray-600 break-words whitespace-normal">{it.kategori || '—'}</span></td>
                 <td className="px-4 py-2.5">
-                  <span className="flex items-start gap-1.5 text-gray-600 text-xs break-words whitespace-normal">
-                    <User className="w-3 h-3 text-gray-300 mt-0.5 shrink-0" />{it.peran || '—'}
-                  </span>
+                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.peran || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="flex items-start gap-1.5 text-gray-700 text-xs break-words whitespace-normal">
-                    <Tag className="w-3 h-3 text-gray-300 mt-0.5 shrink-0" />{it.target_keyword || '—'}
-                  </span>
+                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.target_keyword || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[260px]">
                   <span className="font-semibold text-gray-800 block break-words whitespace-normal" title={it.judul}>{it.judul}</span>
@@ -137,9 +133,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   <span className="text-xs text-gray-500 block break-words whitespace-normal" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="flex items-start gap-1.5 text-gray-600 text-xs whitespace-nowrap">
-                    <CalendarDays className="w-3 h-3 text-gray-300 mt-0.5" />{it.tanggal_publikasi || '—'}
-                  </span>
+                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.tanggal_publikasi || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[220px]">
                   {it.link_artikel ? (

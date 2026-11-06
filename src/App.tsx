@@ -2628,7 +2628,7 @@ export default function App() {
             <Settings className="w-5 h-5 text-gray-500" />
             Pengaturan
           </h2>
-          <p className="text-sm text-gray-400 mt-0.5">Project, properti, anggota, akun, dan nama event</p>
+          <p className="text-sm text-gray-400 mt-0.5">Project, properti, anggota, dan nama event</p>
         </div>
       </div>
 
@@ -2747,27 +2747,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* kartu akun */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
-        <span className={panel_title}>Akun</span>
-        <div className="flex items-center gap-3 pt-3">
-          <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-gray-800 truncate">{displayName}</p>
-            <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-red-300 hover:text-red-600 transition-colors"
-            title="Keluar"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="flex-1 text-left">Keluar</span>
-          </button>
-        </div>
-      </div>
 
     </motion.div>
   );
@@ -2775,8 +2754,8 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6 min-w-0">
+        <div className={cn("max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between gap-4", sideOpen && 'md:pl-60')}>
+          <div className="flex flex-1 items-center gap-6 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
                 <BarChart3 className="w-5 h-5 text-white" />
@@ -2792,7 +2771,7 @@ export default function App() {
 
             {/* Tab Cek: tombol jenis data (Impresi/Posisi/Klik/Sesi/Scroll) di header */}
             {currentTab === 'cek' && (
-              <div className="hidden md:flex items-center gap-1.5 min-w-0 overflow-x-auto">
+              <div className="hidden md:flex flex-1 items-center justify-center gap-1.5 min-w-0 overflow-x-auto">
                 {KINDS.map((k) => (
                   <button
                     key={k.id}
@@ -2890,13 +2869,54 @@ export default function App() {
                 {/* Compare & refresh kini berada di dalam popup rentang tanggal */}
               </>
             )}
+
+            {/* Tab Aksi: cari, pilih bulan, ekspor CSV/PDF — rata kanan di header */}
+            {currentTab === 'tracker' && (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="relative hidden sm:block w-56 shrink">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari log..."
+                    value={logSearchQuery}
+                    onChange={(e) => setLogSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 bg-white px-2 py-1.5 rounded-xl border border-gray-200 shadow-sm shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    type="month"
+                    value={logFilterMonth}
+                    onChange={(e) => setLogFilterMonth(e.target.value)}
+                    className="bg-transparent text-[11px] font-bold text-gray-700 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm shrink-0">
+                  <button
+                    onClick={exportLogsToCSV}
+                    className="p-1.5 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
+                    title="Ekspor CSV"
+                  >
+                    <FileDown className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={exportLogsToPDF}
+                    className="p-1.5 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
+                    title="Ekspor PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
       {sideOpen && (
-      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-40 overflow-y-auto">
+      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-40 overflow-y-auto">
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Menu</span>
           <button onClick={toggleSide} title="Sembunyikan sidebar" aria-label="Sembunyikan sidebar" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
@@ -2936,6 +2956,24 @@ export default function App() {
             <Settings className={cn("w-4 h-4", currentTab === 'pengaturan' ? "text-white" : "text-gray-400")} />
             Pengaturan
           </button>
+
+          {/* akun — pindahan dari sidebar proyek (tab Optimasi), setelah Pengaturan */}
+          <div className="mt-2 pt-3 border-t border-gray-100 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-gray-800 truncate">{displayName}</p>
+              <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+              title="Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </aside>
       )}
@@ -3068,24 +3106,6 @@ export default function App() {
                     ))}
                   </div>
 
-                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2.5">
-                                        <div className="flex items-center gap-3 pt-1">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
-                        {initials}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-gray-800 truncate">{displayName}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
-                      </div>
-                      <button
-                        onClick={handleLogout}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        title="Keluar"
-                      >
-                        <LogOut className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
                 </aside>
 
                 <div className="flex-1 min-w-0 w-full">
@@ -4267,45 +4287,6 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* Toolbar: cari, pemilih bulan, ekspor - rata kanan */}
-            <div className="flex items-center justify-end gap-3 flex-wrap">
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Cari log berdasarkan URL, query, atau catatan..."
-                  value={logSearchQuery}
-                  onChange={(e) => setLogSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                />
-              </div>
-              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <input
-                  type="month"
-                  value={logFilterMonth}
-                  onChange={(e) => setLogFilterMonth(e.target.value)}
-                  className="bg-transparent text-sm font-bold text-gray-700 focus:outline-none"
-                />
-              </div>
-              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
-                <button
-                  onClick={exportLogsToCSV}
-                  className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
-                  title="Ekspor CSV"
-                >
-                  <FileDown className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={exportLogsToPDF}
-                  className="p-2 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors"
-                  title="Ekspor PDF"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
             {/* Input Baru - tombol melayang kanan bawah */}
             <button
               onClick={() => {

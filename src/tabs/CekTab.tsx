@@ -212,11 +212,6 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* jenis data (Impresi/Posisi/Klik/Sesi/Scroll) dipilih dari sidebar; sini cuma info jumlah */}
-      <div className="flex items-center justify-end">
-        <span className="text-[11px] font-bold text-gray-400 uppercase">{rows.length} URL</span>
-      </div>
-
       {/* tabel */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
