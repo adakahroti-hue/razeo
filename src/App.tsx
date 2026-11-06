@@ -29,8 +29,6 @@ import {
   UserPlus,
   X
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { 
   LineChart, 
   Line, 
@@ -90,6 +88,15 @@ interface GA4Row {
   dimensionValues: { value: string }[];
   metricValues: { value: string }[];
 }
+
+// Muat pustaka PDF (jsPDF + autoTable) HANYA saat fitur ekspor dipakai.
+// Ini ~160KB minified (html2canvas+purify ikut) — tak perlu saat aplikasi dibuka.
+let pdfKitPromise: Promise<{ jsPDF: any; autoTable: any }> | null = null;
+const loadPdfKit = () =>
+  (pdfKitPromise ??= Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]).then(([j, a]) => ({ jsPDF: (j as any).jsPDF, autoTable: (a as any).default })));
 
 // Daftar modul audit — dipakai sidebar kategori & badge judul kartu
 const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean }> = [
@@ -719,7 +726,8 @@ export default function App() {
     );
   };
 
-  const downloadPositionPdf = (position: number, avgCtr: number) => {
+  const downloadPositionPdf = async (position: number, avgCtr: number) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -849,7 +857,8 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const downloadEnrichmentPDF = (enrichmentData: any[]) => {
+  const downloadEnrichmentPDF = async (enrichmentData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -909,7 +918,8 @@ export default function App() {
     doc.save(`SEO-Enrichment-Report.pdf`);
   };
 
-  const downloadLHFPDF = (lhfData: any[]) => {
+  const downloadLHFPDF = async (lhfData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -969,7 +979,8 @@ export default function App() {
     doc.save(`SEO-LHF-Report.pdf`);
   };
 
-  const downloadAiPDF = (aiData: any[]) => {
+  const downloadAiPDF = async (aiData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -1030,7 +1041,8 @@ export default function App() {
     doc.save(`SEO-AI-Search-Report.pdf`);
   };
 
-  const downloadZeroPDF = (zeroData: any[]) => {
+  const downloadZeroPDF = async (zeroData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -1090,7 +1102,8 @@ export default function App() {
     doc.save(`SEO-Zero-Traffic-Report.pdf`);
   };
 
-  const downloadConsolidationPDF = (consolidationData: any[]) => {
+  const downloadConsolidationPDF = async (consolidationData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Header
@@ -1172,7 +1185,8 @@ export default function App() {
     doc.save(`SEO-Consolidation-Report.pdf`);
   };
 
-  const downloadScrollPDF = (scrollData: any[]) => {
+  const downloadScrollPDF = async (scrollData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Filter data if some are selected
@@ -1222,7 +1236,8 @@ export default function App() {
     doc.save(`SEO-Scroll-Optimization-Report.pdf`);
   };
 
-  const downloadErPDF = (erData: any[]) => {
+  const downloadErPDF = async (erData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Filter data if some are selected
@@ -1263,7 +1278,8 @@ export default function App() {
     doc.save(`SEO-ER-Optimization-${erSubTab}-Report.pdf`);
   };
 
-  const downloadCtaPDF = (ctaData: any[]) => {
+  const downloadCtaPDF = async (ctaData: any[]) => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF() as any;
     
     // Filter data if some are selected
@@ -2551,7 +2567,8 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const exportLogsToPDF = () => {
+  const exportLogsToPDF = async () => {
+    const { jsPDF, autoTable } = await loadPdfKit();
     const doc = new jsPDF();
     doc.text(`Laporan Aksi SEO - ${logFilterMonth}`, 14, 15);
     
