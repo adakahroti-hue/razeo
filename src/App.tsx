@@ -2783,7 +2783,7 @@ export default function App() {
 
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
       {sideOpen && (
-      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-40 overflow-y-auto">
+      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-[55] overflow-y-auto">
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Menu</span>
           <button onClick={toggleSide} title="Sembunyikan sidebar" aria-label="Sembunyikan sidebar" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
