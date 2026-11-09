@@ -24,6 +24,7 @@ type Props = {
   onDelete: (id: string) => Promise<boolean>;
 };
 
+const ROLES = ['inspire', 'educate', 'convert'] as const;
 const PRIORITAS = ['rendah', 'sedang', 'tinggi'] as const;
 const prioritasStyle: Record<string, string> = {
   rendah: 'bg-gray-100 text-gray-600',
@@ -172,7 +173,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.18 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-5">
@@ -189,7 +190,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   <input value={draft.judul} onChange={(e) => setDraft({ ...draft, judul: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Judul artikel" />
                 </label>
                 <label className="text-xs font-bold text-gray-500 sm:col-span-2">Meta Deskripsi
-                  <input value={draft.meta_deskripsi} onChange={(e) => setDraft({ ...draft, meta_deskripsi: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Deskripsi untuk mesin pencari (opsional)" />
+                  <textarea value={draft.meta_deskripsi} onChange={(e) => setDraft({ ...draft, meta_deskripsi: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Deskripsi untuk mesin pencari (opsional)" />
                 </label>
                 <label className="text-xs font-bold text-gray-500">Kategori
                   <input value={draft.kategori} onChange={(e) => setDraft({ ...draft, kategori: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Blog / Landing..." />
@@ -201,7 +202,13 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   <input type="date" value={draft.tanggal_publikasi} onChange={(e) => setDraft({ ...draft, tanggal_publikasi: e.target.value })} className={cn(cellInput, 'mt-1')} />
                 </label>
                 <label className="text-xs font-bold text-gray-500">Role
-                  <input value={draft.peran} onChange={(e) => setDraft({ ...draft, peran: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Penulis / Editor..." />
+                  <select value={draft.peran} onChange={(e) => setDraft({ ...draft, peran: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]')}>
+                    <option value="">— pilih role —</option>
+                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    {draft.peran && !ROLES.includes(draft.peran as any) && (
+                      <option value={draft.peran}>{draft.peran} (lama)</option>
+                    )}
+                  </select>
                 </label>
                 <label className="text-xs font-bold text-gray-500 sm:col-span-2">Link Artikel
                   <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />
