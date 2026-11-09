@@ -2784,13 +2784,8 @@ export default function App() {
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
       {sideOpen && (
       <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-[55] overflow-y-auto">
-        <div className="flex items-center justify-between px-2 mb-2">
-          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Menu</span>
-          <button onClick={toggleSide} title="Sembunyikan sidebar" aria-label="Sembunyikan sidebar" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
-        {/* Nama project & properti — pindahan dari halaman Pengaturan */}
+        {/* Nama project (kiri) & tombol sembunyi (kanan) — sejajar satu baris */}
+        <div className="flex items-center gap-1.5 mb-2">
         {projects.length > 0 && (
           <select
             value={activeProjectId ?? ''}
@@ -2801,7 +2796,7 @@ export default function App() {
               setActiveProjectId(pid);
               if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
             }}
-            className="w-full text-sm font-bold bg-white border border-gray-200 rounded-xl px-2.5 py-2 mb-2 truncate focus:outline-none focus:border-emerald-500"
+            className="flex-1 min-w-0 text-sm font-bold bg-white border border-gray-200 rounded-xl px-2.5 py-2 truncate focus:outline-none focus:border-emerald-500"
             title="Ganti project"
           >
             {projects.map((pp) => (
@@ -2809,6 +2804,15 @@ export default function App() {
             ))}
           </select>
         )}
+          <button
+            onClick={toggleSide}
+            title="Sembunyikan sidebar"
+            aria-label="Sembunyikan sidebar"
+            className="p-1.5 shrink-0 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+        </div>
         <button
           onClick={() => setViewState('select')}
           className="w-full flex items-center gap-2 px-2.5 py-2 mb-2 bg-white border border-gray-200 rounded-xl text-xs hover:border-emerald-300 transition-colors"
@@ -2818,6 +2822,8 @@ export default function App() {
           <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
           <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
         </button>
+
+        <div className="mt-2"></div>
 
         <nav className="space-y-1">
           {TAB_LIST.map((t) => (

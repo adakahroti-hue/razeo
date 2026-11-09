@@ -106,7 +106,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
         <table className="w-full text-left align-top" style={{ minWidth: 980 }}>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Kategori', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Prioritas', 'Aksi'].map((h) => (
+              {['Produk', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Prioritas', 'Aksi'].map((h) => (
                 <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400 whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -186,10 +186,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="text-xs font-bold text-gray-500">Kategori
+                <label className="text-xs font-medium text-gray-500">Kategori
                   <input value={draft.kategori} onChange={(e) => setDraft({ ...draft, kategori: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Blog / Landing..." />
                 </label>
-                <label className="text-xs font-bold text-gray-500">Role
+                <label className="text-xs font-medium text-gray-500">Role
                   <select value={draft.peran} onChange={(e) => setDraft({ ...draft, peran: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]')}>
                     <option value="">— pilih role —</option>
                     {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -198,26 +198,27 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                     )}
                   </select>
                 </label>
-                <label className="text-xs font-bold text-gray-500 sm:col-span-2">Target Keyword
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Target Keyword
                   <input value={draft.target_keyword} onChange={(e) => setDraft({ ...draft, target_keyword: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="keyword utama" />
                 </label>
-                <label className="text-xs font-bold text-gray-500 sm:col-span-2">Judul *
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Judul *
                   <input value={draft.judul} onChange={(e) => setDraft({ ...draft, judul: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Judul artikel" />
                 </label>
-                <label className="text-xs font-bold text-gray-500 sm:col-span-2">Meta Deskripsi
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Meta Deskripsi
                   <textarea value={draft.meta_deskripsi} onChange={(e) => setDraft({ ...draft, meta_deskripsi: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Deskripsi untuk mesin pencari (opsional)" />
                 </label>
-                <label className="text-xs font-bold text-gray-500 sm:col-span-2">Tanggal Publikasi
+                <label className="text-xs font-medium text-gray-500">Tanggal Publikasi
                   <input type="date" value={draft.tanggal_publikasi} onChange={(e) => setDraft({ ...draft, tanggal_publikasi: e.target.value })} className={cn(cellInput, 'mt-1')} />
                 </label>
-                <label className="text-xs font-bold text-gray-500 sm:col-span-2">Link Artikel
-                  <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />
-                </label>
-                <label className="text-xs font-bold text-gray-500">Prioritas
+                <label className="text-xs font-medium text-gray-500">Prioritas
                   <select value={draft.prioritas} onChange={(e) => setDraft({ ...draft, prioritas: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]')}>
                     {PRIORITAS.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </label>
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Link Artikel
+                  <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />
+                </label>
+                
               </div>
 
               <div className="flex justify-end gap-2 pt-5">
