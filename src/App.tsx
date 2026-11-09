@@ -121,7 +121,7 @@ const TAB_LIST: Array<{ id: 'overview' | 'cek' | 'dashboard' | 'konten' | 'track
   { id: 'cek', label: 'Cek', icon: Eye },
   { id: 'dashboard', label: 'Optimasi', icon: Target },
   { id: 'konten', label: 'Konten', icon: FileText },
-  { id: 'tracker', label: 'Aksi', icon: History },
+  { id: 'tracker', label: 'Perubahan', icon: History },
 ];
 
 // ===== URL halaman (sinkron dengan viewState, tanpa library routing) =====
