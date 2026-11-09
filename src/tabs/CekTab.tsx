@@ -51,6 +51,8 @@ const posStatusView = (s: PosStatus, pc: number | null, pp: number | null) => {
   return { text: `${d > 0 ? '▼' : '▲'} ${Math.abs(d).toFixed(1)}`, cls: d < 0 ? 'text-emerald-700' : 'text-red-600' };
 };
 
+const grp = (n: number) => n.toLocaleString('id-ID');   // pemisah ribuan: 4568 → 4.568
+const divG = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${grp(d)}`);
 const div = (d: number | undefined | null) => (d == null ? '—' : `${d > 0 ? '+' : ''}${d}`);
 const pct = (d: number | undefined | null) =>
   d == null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(2)}%`;
@@ -187,7 +189,7 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
   const cell = (r: any, id: string): React.ReactNode => {
     if (id === 'url') return <span className="text-gray-700 block truncate" title={r.url}>{r.url}</span>;
     if (id === 'sel') {
-      if (kind === 'impressi') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{div(r.sel)}</span>;
+      if (kind === 'impressi') return <span className={cn('font-bold', r.sel > 0 ? 'text-emerald-700' : r.sel < 0 ? 'text-red-600' : 'text-gray-500')}>{divG(r.sel)}</span>;
       if (kind === 'posisi') {
         const v = posStatusView(r.pStatus, r.cur, r.prev);
         return <span className={cn('font-bold', v.cls)}>{v.text}</span>;
@@ -203,10 +205,13 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
       if (kind === 'posisi') return null;
       return <DeltaBadge value={r.delta} />;
     }
-    if (id === 'selImp') return <span className="font-bold text-gray-600">{div(r.selImp)}</span>; // posisi: selisih impresi
+    if (id === 'selImp') return <span className="font-bold text-gray-600">{divG(r.selImp)}</span>; // posisi: selisih impresi
     if (kind === 'posisi') return <span className="font-bold text-gray-900">{r[id] == null ? '—' : Number(r[id]).toFixed(1)}</span>; // posisi 0 = tak ada posisi → tampil —
     if (kind === 'klik') return <span className="font-bold text-gray-900">{Number(r[id] ?? 0).toFixed(2)}%</span>;
-    if (id === 'prev' || id === 'cur') return <span className="font-bold text-gray-900">{id === 'cur' ? r.cur : r.prev}</span>;
+    if (id === 'prev' || id === 'cur') {
+      const raw = id === 'cur' ? r.cur : r.prev;
+      return <span className="font-bold text-gray-900">{kind === 'impressi' && typeof raw === 'number' ? grp(raw) : raw}</span>;
+    }
     return <span>{String(r[id])}</span>;
   };
 
