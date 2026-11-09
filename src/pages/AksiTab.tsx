@@ -41,10 +41,11 @@ export default function AksiTab({
                 setSelectedAspects([]);
                 setIsAddingLog(true);
               }}
-              className="fixed bottom-10 right-10 z-[70] bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/30"
+              className="fixed bottom-10 right-10 z-[70] bg-emerald-600 text-white w-14 h-14 rounded-full flex items-center justify-center hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/30"
+              title="Input Baru"
+              aria-label="Input Baru"
             >
-              <Plus className="w-4 h-4" />
-              Input Baru
+              <Plus className="w-6 h-6" />
             </button>
 
 

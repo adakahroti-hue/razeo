@@ -127,7 +127,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   <span className="text-xs text-gray-600 break-words whitespace-normal">{it.target_keyword || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[260px]">
-                  <span className="font-semibold text-gray-800 block break-words whitespace-normal" title={it.judul}>{it.judul}</span>
+                  <span className="text-xs font-semibold text-gray-800 block break-words whitespace-normal" title={it.judul}>{it.judul}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[260px]">
                   <span className="text-xs text-gray-500 block break-words whitespace-normal" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
@@ -135,10 +135,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                 <td className="px-4 py-2.5">
                   <span className="text-xs text-gray-600 break-words whitespace-normal">{it.tanggal_publikasi || '—'}</span>
                 </td>
-                <td className="px-4 py-2.5 max-w-[220px]">
+                <td className="px-4 py-2.5">
                   {it.link_artikel ? (
-                    <a href={it.link_artikel} target="_blank" rel="noreferrer" className="flex items-start gap-1.5 text-emerald-700 hover:underline break-all whitespace-normal">
-                      <Link2 className="w-3 h-3 mt-0.5 shrink-0" />Buka artikel
+                    <a href={it.link_artikel} target="_blank" rel="noreferrer" title="Buka artikel" aria-label="Buka artikel" className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
+                      <Link2 className="w-4 h-4" />
                     </a>
                   ) : (
                     <span className="text-gray-400">—</span>

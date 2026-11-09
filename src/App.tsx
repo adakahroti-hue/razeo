@@ -2790,6 +2790,35 @@ export default function App() {
             <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
+        {/* Nama project & properti — pindahan dari halaman Pengaturan */}
+        {projects.length > 0 && (
+          <select
+            value={activeProjectId ?? ''}
+            onChange={(e) => {
+              const pid = e.target.value;
+              const chosen = projects.find((pp) => pp.id === pid);
+              localStorage.setItem('razeo_project', pid);
+              setActiveProjectId(pid);
+              if (chosen) enterProject(chosen.id, chosen.name, chosen.role);
+            }}
+            className="w-full text-sm font-bold bg-white border border-gray-200 rounded-xl px-2.5 py-2 mb-2 truncate focus:outline-none focus:border-emerald-500"
+            title="Ganti project"
+          >
+            {projects.map((pp) => (
+              <option key={pp.id} value={pp.id}>{pp.name}</option>
+            ))}
+          </select>
+        )}
+        <button
+          onClick={() => setViewState('select')}
+          className="w-full flex items-center gap-2 px-2.5 py-2 mb-2 bg-white border border-gray-200 rounded-xl text-xs hover:border-emerald-300 transition-colors"
+          title="Ganti property Search Console / GA4"
+        >
+          <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="truncate flex-1 text-left font-medium text-gray-700">{selectedSite || 'Pilih property'}</span>
+          <ChevronRight className="w-3.5 h-3.5 text-gray-400 rotate-90 shrink-0" />
+        </button>
+
         <nav className="space-y-1">
           {TAB_LIST.map((t) => (
             <button
