@@ -2973,9 +2973,7 @@ export default function App() {
               saveEv={saveEv}
               selectedSite={selectedSite}
               setActiveProjectId={setActiveProjectId}
-              setShowEvPop={setShowEvPop}
               setViewState={setViewState}
-              showEvPop={showEvPop}
             />
           )}
           {['overview', 'konten', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (

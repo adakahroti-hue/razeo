@@ -118,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           judul: String(body.judul || "").trim().slice(0, 300),
           tanggal_publikasi: body.tanggal_publikasi ? String(body.tanggal_publikasi).slice(0, 10) : null,
           link_artikel: body.link_artikel ? String(body.link_artikel).trim().slice(0, 2048) : null,
+          internal_link: body.internal_link ? String(body.internal_link).trim().slice(0, 8000) : null,
           peran: body.peran ? String(body.peran).trim().slice(0, 80) : null,
           prioritas: ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang",
         };
@@ -126,6 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (error) {
           if (String(error.message).includes("relation") || error.code === "42P01")
             return res.status(500).json({ error: "Tabel content_items belum ada — jalankan migrasi SQL 0004 di Supabase" });
+          if (error.code === "42703" || String(error.message).includes("internal_link"))
+            return res.status(500).json({ error: "Kolom internal_link belum ada — jalankan migrasi SQL 0008 di Supabase" });
           throw error;
         }
         return res.status(201).json({ item: data });
@@ -144,6 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (body.judul !== undefined) patchRow.judul = String(body.judul || "").trim();
         if (body.tanggal_publikasi !== undefined) patchRow.tanggal_publikasi = body.tanggal_publikasi || null;
         if (body.link_artikel !== undefined) patchRow.link_artikel = body.link_artikel || null;
+        if (body.internal_link !== undefined) patchRow.internal_link = body.internal_link ? String(body.internal_link).trim() : null;
         if (body.peran !== undefined) patchRow.peran = body.peran || null;
         if (body.prioritas !== undefined) patchRow.prioritas = ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang";
         if (patchRow.judul === "") return res.status(400).json({ error: "Judul tidak boleh kosong" });

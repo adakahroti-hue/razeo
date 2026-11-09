@@ -11,6 +11,7 @@ export type ContentItem = {
   judul: string;
   tanggal_publikasi: string | null;
   link_artikel: string | null;
+  internal_link: string | null;
   peran: string | null;
   prioritas: string;
   created_at?: string;
@@ -39,6 +40,7 @@ const kosong = {
   judul: '',
   tanggal_publikasi: '',
   link_artikel: '',
+  internal_link: '',
   peran: '',
   prioritas: 'sedang',
 };
@@ -46,6 +48,10 @@ const kosong = {
 type Draft = typeof kosong;
 // mode popup: 'add' = konten baru, 'edit' = ubah konten lama
 type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
+
+// internal_link: teks satu URL per baris (atau dipisah koma) -> daftar
+const splitLinks = (v: string | null): string[] =>
+  (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
 
 export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }: Props) {
   const [modal, setModal] = useState<Modal>(null);
@@ -61,6 +67,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
       judul: it.judul,
       tanggal_publikasi: it.tanggal_publikasi ?? '',
       link_artikel: it.link_artikel ?? '',
+      internal_link: it.internal_link ?? '',
       peran: it.peran ?? '',
       prioritas: it.prioritas,
     });
@@ -78,6 +85,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
       judul: draft.judul.trim(),
       tanggal_publikasi: draft.tanggal_publikasi || null,
       link_artikel: draft.link_artikel.trim() || null,
+      internal_link: draft.internal_link.trim() || null,
       peran: draft.peran.trim() || null,
       prioritas: draft.prioritas,
     };
@@ -106,17 +114,17 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
         <table className="w-full text-left align-top" style={{ minWidth: 980 }}>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Produk', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Prioritas', 'Aksi'].map((h) => (
+              {['Produk', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Prioritas', 'Aksi'].map((h) => (
                 <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading && items.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat...</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik tombol <b>+</b> di kanan bawah untuk mulai pendataan.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik tombol <b>+</b> di kanan bawah untuk mulai pendataan.</td></tr>
             )}
             {items.map((it) => (
               <tr key={it.id} className="hover:bg-gray-50/60 align-top">
@@ -144,6 +152,25 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
+                </td>
+                <td className="px-4 py-2.5 max-w-[220px]">
+                  {(() => {
+                    const ls = splitLinks(it.internal_link);
+                    if (!ls.length) return <span className="text-gray-400">—</span>;
+                    return (
+                      <div className="flex flex-col gap-1 min-w-0">
+                        {ls.slice(0, 3).map((u, i) => (
+                          <a key={i} href={u} target="_blank" rel="noreferrer" title={u}
+                             className="text-xs text-emerald-700 hover:underline truncate">{u}</a>
+                        ))}
+                        {ls.length > 3 && (
+                          <span className="text-[11px] text-gray-400 font-bold" title={ls.join('\n')}>
+                            +{ls.length - 3} link lainnya
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={cn('inline-block px-2 py-0.5 rounded-md text-xs font-bold capitalize', prioritasStyle[it.prioritas] || prioritasStyle.sedang)}>{it.prioritas}</span>
@@ -217,6 +244,9 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                 </label>
                 <label className="text-xs font-medium text-gray-500 sm:col-span-2">Link Artikel
                   <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />
+                </label>
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Internal Link
+                  <textarea value={draft.internal_link} onChange={(e) => setDraft({ ...draft, internal_link: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Satu URL per baris — artikel lain yang di-link dari konten ini" />
                 </label>
                 
               </div>
