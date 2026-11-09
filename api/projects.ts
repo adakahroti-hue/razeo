@@ -178,6 +178,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ deleted: true });
       }
 
+      // --- tab TASK: daftar tugas project (siapa pun anggota boleh baca) ---
+      if (action === "task-list") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("project_id", info.projectId)
+          .order("created_at", { ascending: false });
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel tasks belum ada — jalankan migrasi SQL 0009 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ items: data || [] });
+      }
+
+      // --- tab TASK: tambah tugas ---
+      if (action === "task-add") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const row = {
+          project_id: info.projectId,
+          uid: user.uid,
+          nama_tugas: String(body.nama_tugas || "").trim().slice(0, 500),
+          prioritas: ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang",
+          status: ["rencana", "proses", "selesai"].includes(String(body.status)) ? String(body.status) : "rencana",
+        };
+        if (!row.nama_tugas) return res.status(400).json({ error: "Nama tugas wajib diisi" });
+        const { data, error } = await supabase.from("tasks").insert(row).select().single();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel tasks belum ada — jalankan migrasi SQL 0009 di Supabase" });
+          throw error;
+        }
+        return res.status(201).json({ item: data });
+      }
+
+      // --- tab TASK: ubah tugas (termasuk ubah cepat prioritas/status dari tabel) ---
+      if (action === "task-update") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const patchRow: any = { updated_at: new Date().toISOString() };
+        if (body.nama_tugas !== undefined) patchRow.nama_tugas = String(body.nama_tugas || "").trim().slice(0, 500);
+        if (body.prioritas !== undefined) patchRow.prioritas = ["rendah", "sedang", "tinggi"].includes(String(body.prioritas)) ? String(body.prioritas) : "sedang";
+        if (body.status !== undefined) patchRow.status = ["rencana", "proses", "selesai"].includes(String(body.status)) ? String(body.status) : "rencana";
+        if (patchRow.nama_tugas === "") return res.status(400).json({ error: "Nama tugas tidak boleh kosong" });
+        const { data, error } = await supabase
+          .from("tasks")
+          .update(patchRow)
+          .eq("id", id)
+          .eq("project_id", info.projectId) // batasi ke project ini saja
+          .select()
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ item: data });
+      }
+
+      // --- tab TASK: hapus tugas ---
+      if (action === "task-delete") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const { error, count } = await supabase
+          .from("tasks")
+          .delete({ count: "exact" })
+          .eq("id", id)
+          .eq("project_id", info.projectId);
+        if (error) throw error;
+        if (!count) return res.status(404).json({ error: "Baris tidak ditemukan" });
+        return res.status(200).json({ deleted: true });
+      }
+
       // --- nama event scroll & CTA project (baca) ---
       if (action === "events-get") {
         const info = await requireProject(user.uid, req);

@@ -13,6 +13,7 @@ import {
   FileDown,
   FileText,
   Filter,
+  ListTodo,
   Globe,
   History,
   LogOut,
@@ -54,6 +55,7 @@ import OverviewTab from './tabs/OverviewTab';
 import KontenTab, { ContentItem } from './tabs/KontenTab';
 import CekTab, { KINDS, Kind } from './tabs/CekTab';
 import { createClient, User } from '@supabase/supabase-js';
+import TaskTab, { type TaskItem } from './tabs/TaskTab'
 import SettingsPageComponent from './pages/SettingsPage'
 import AksiTab, { AksiAddLogModal } from './pages/AksiTab'
 import DashboardTab from './pages/DashboardTab'
@@ -116,11 +118,12 @@ const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean 
 ];
 
 // Navigasi utama — chip di header lama, pindah ke sidebar kiri
-const TAB_LIST: Array<{ id: 'overview' | 'cek' | 'dashboard' | 'konten' | 'tracker'; label: string; icon: any }> = [
+const TAB_LIST: Array<{ id: 'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker'; label: string; icon: any }> = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'cek', label: 'Cek', icon: Eye },
   { id: 'dashboard', label: 'Optimasi', icon: Target },
   { id: 'konten', label: 'Konten', icon: FileText },
+  { id: 'task', label: 'Task', icon: ListTodo },
   { id: 'tracker', label: 'Perubahan', icon: History },
 ];
 
@@ -230,12 +233,14 @@ export default function App() {
   const [expandedEnrichmentPage, setExpandedEnrichmentPage] = useState<string | null>(null);
   const [expandedZeroPage, setExpandedZeroPage] = useState<string | null>(null);
   const [expandedLhfPage, setExpandedLhfPage] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<'overview' | 'cek' | 'dashboard' | 'konten' | 'tracker' | 'pengaturan'>('overview');
+  const [currentTab, setCurrentTab] = useState<'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker' | 'pengaturan'>('overview');
   // Tab Cek (perbandingan dua periode per halaman)
   const [cekData, setCekData] = useState<any>(null);
   const [cekLoading, setCekLoading] = useState(false);
   // Konten (pendataan)
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [taskItems, setTaskItems] = useState<TaskItem[]>([]);
+  const [taskLoading, setTaskLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
   // Overview (ringkasan performa)
   const [ovData, setOvData] = useState<any>(null);
@@ -1551,6 +1556,25 @@ export default function App() {
     try { await postContent({ action: 'content-delete', id }); await loadContent(); return true; } catch { return false; }
   };
 
+  // ===== tab TASK: rencana tugas (nama, prioritas, status) =====
+  const loadTasks = async () => {
+    setTaskLoading(true);
+    try {
+      const d = await postContent({ action: 'task-list' });
+      setTaskItems(d.items || []);
+    } catch { /* pesan error sudah di postContent */ }
+    setTaskLoading(false);
+  };
+  const addTask = async (row: any) => {
+    try { await postContent({ action: 'task-add', ...row }, 201); await loadTasks(); return true; } catch { return false; }
+  };
+  const updateTask = async (id: string, patch: any) => {
+    try { await postContent({ action: 'task-update', id, ...patch }); await loadTasks(); return true; } catch { return false; }
+  };
+  const deleteTask = async (id: string) => {
+    try { await postContent({ action: 'task-delete', id }); await loadTasks(); return true; } catch { return false; }
+  };
+
   // muat data ketika masuk dashboard (project tersambung) + saat tab dibuka
   useEffect(() => {
     if (viewState === 'dashboard' && (currentTab === 'overview' || currentTab === 'dashboard')) {
@@ -1562,6 +1586,7 @@ export default function App() {
       }
     }
     if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
+    if (viewState === 'dashboard' && currentTab === 'task') loadTasks();
     if (viewState === 'dashboard' && currentTab === 'cek') loadCek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewState, currentTab, activeProjectId, isComparing]);
@@ -2962,6 +2987,17 @@ export default function App() {
               />
             </div>
           )}
+          {currentTab === 'task' && (
+            <div key="task">
+              <TaskTab
+                loading={taskLoading}
+                items={taskItems}
+                onAdd={addTask}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+              />
+            </div>
+          )}
           {currentTab === 'pengaturan' && (
             <SettingsPageComponent
               activeProjectId={activeProjectId}
@@ -2976,7 +3012,7 @@ export default function App() {
               setViewState={setViewState}
             />
           )}
-          {['overview', 'konten', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
+          {['overview', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
           <DashboardTab
             AUDIT_TABS={AUDIT_TABS}
             Ga4EventBreakdown={Ga4EventBreakdown}
