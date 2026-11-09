@@ -61,6 +61,9 @@ const rel = (cur: number, prev: number) => {
   if (!prev) return null;
   return ((cur - prev) / prev) * 100;
 };
+// buang URL noise: fragment '#' & teks 'page' (dipakai dua titik pembentuk rows)
+const okUrl = (u: string) =>
+  !!u && !u.includes('#') && !/(?:^|[\/?&=_.-])page(?:[\/?&=_-]|$)/i.test(u);
 // lolos cache parsial: semua URL dari penggabungan dua periode
 const allUrls = (a: Pair[], b: Pair[]) => {
   const s = new Set<string>();
@@ -99,7 +102,7 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
     if (kind === 'impressi' || kind === 'posisi' || kind === 'klik') {
       const p2 = new Map(data.gsc.previous.map((r) => [r.url, r]));
       const p1 = new Map(data.gsc.current.map((r) => [r.url, r]));
-      const urls = [...new Set([...p2.keys(), ...p1.keys()])].filter(Boolean);
+      const urls = [...new Set([...p2.keys(), ...p1.keys()])].filter(okUrl);
       return urls.map((url) => {
         const c: Partial<GscRow> = p1.get(url) || {};
         const p: Partial<GscRow> = p2.get(url) || {};
@@ -129,7 +132,7 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
     const src = kind === 'sesi' ? data.sesi : data.scroll75;
     const p2 = new Map(src.previous.filter((r) => r.url).map((r) => [r.url, r.value]));
     const p1 = new Map(src.current.filter((r) => r.url).map((r) => [r.url, r.value]));
-    const urls = [...new Set([...p2.keys(), ...p1.keys()])];
+    const urls = [...new Set([...p2.keys(), ...p1.keys()])].filter(okUrl);
     return urls.map((url) => {
       const cur = p1.get(url) ?? 0;
       const prev = p2.get(url) ?? 0;
