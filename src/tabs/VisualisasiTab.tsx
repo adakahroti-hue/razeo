@@ -26,7 +26,8 @@ const ROLE_FILL: Record<string, string> = {
 };
 const FALLBACK_FILL = 'bg-[#9aa3af] text-white';
 // gaya kotak TUJUAN (daftar internal link) — indigo, selebihnya; sama pesan warna dg chip Internal Link tab Konten
-const TARGET_FILL = 'bg-white border-2 border-dashed border-indigo-300 text-indigo-700';
+const TARGET_FILL = 'bg-white border-2 border-dashed border-indigo-300 text-indigo-700'; // tujuan non-produk (lintas kategori)
+const PRODUK_FILL = 'bg-[#f2994a] text-white'; // kolom PRODUK: bulat penuh oranye
 
 // ===== aturan kolom = urutan ROLE FUNNEL (bukan depthing graph):
 //      paling kiri inspire (biru) -> tengah educate (hijau) -> kanan produk/convert (oranye) -> paling ujung tanpa role
@@ -41,6 +42,9 @@ const COL_LABEL: { label: string; cls: string }[] = [
 ];
 const colOf = (role: string) => (role in ROLE_RANK ? ROLE_RANK[role] : NROLE_COL);
 const colOfNode = (k: GNode) => (k.colOverride !== undefined ? k.colOverride : colOf(k.role));
+// warna kotak: PRODUK penuh oranye dulu, member & isi lain pre-quad role
+const fillOf = (k: GNode) =>
+  colOfNode(k) === PRODUK_COL ? PRODUK_FILL : k.member ? (ROLE_FILL[k.role] ?? FALLBACK_FILL) : TARGET_FILL;
 
 // ===== geometri kanvas mini (px) =====
 const W = 214;
@@ -51,6 +55,8 @@ const PAD_X = 22;
 const PAD_TOP = 66;  // band atas utk LABEL kolom + lane balik, jauh dari baris kotak
 const PAD_BOT = 20;
 const LANE_MIN = 30;  // lane atas mulai (d bawah label ~25, d atas baris gtk 66)
+const SUB_MAX = 5;    // maks baris per DERET — lebih dari ini kolom dipecah jadi sub-deret samping
+const SUB_GAP = 16;   // jarak antar sub-deret dlm satu kolom role
 const LANE_STEP = 10;  // step sinkronin 4 slot utk hindari menumpuk
 
 const colX = (c: number) => PAD_X + c * (W + GX);
@@ -59,90 +65,100 @@ const midY = (r: number) => rowY(r) + H / 2;
 
 type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[]; colOverride?: number };
 type Box = { x: number; y: number };
-type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colRows: number[] };
+type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[] };
 
 // ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
 function runLayout(nodes: GNode[]): Graph {
   const n = nodes.length;
-  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, colRows: [] };
+  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, colHeaders: [] };
   const idx = new Map(nodes.map((k, i) => [k.id, i]));
   const outgoing = nodes.map((k) => k.outIds.filter((t) => idx.has(t)).map((t) => idx.get(t)!));
 
-  // ===== KOLOM = role funnel (bukan depthing graph) =====
-  const stageUsingRole = nodes.map((k) => colOfNode(k));
-  const stage = stageUsingRole; // alias — tetap dipakai utk routing & pengurutan baris
-  const colsCount = NROLE_COL + 1;
-  let columns: number[][] = Array.from({ length: colsCount }, () => [] as number[]);
-  nodes.forEach((_, i) => columns[stage[i]].push(i));
+  // ===== SLOT: tiap kolom role dipecah sub-deret maks SUB_MAX baris (rapi & lebih pendek) =====
+  const roleCol = nodes.map((k) => colOfNode(k));
+  const slotsByRole = new Map<number, number[]>(); // roleCol -> [idx]
+  nodes.forEach((_, i) => {
+    const c = roleCol[i];
+    if (!slotsByRole.has(c)) slotsByRole.set(c, []);
+    slotsByRole.get(c)!.push(i);
+  });
 
-  // sedikit rapihkan: barycenter dlm kolom — utamakan anak sebardn petunjuk langsung
-  const posIn = (c: number, i: number) => columns[c].indexOf(i);
-  const incomingRough = nodes.map(() => [] as number[]);
-  nodes.forEach((k, i) => k.outIds.forEach((t) => {
-    const j = nodes.findIndex((x) => x.id === t);
-    if (j >= 0) incomingRough[j].push(i);
-  }));
-  const bary = (i: number, peers: number[]) => {
-    const ps = peers.filter((p) => p >= 0);
-    return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : posIn(stage[i], i);
-  };
-  for (let pass = 0; pass < 4; pass++) {
-    const fwd = pass % 2 === 0;
-    const order = fwd ? columns.map((_, c) => c) : columns.map((_, c) => c).reverse();
-    for (const c of order) {
-      const scored = columns[c].map((i) => {
-        const idxT = (id: string) => nodes.findIndex((x) => x.id === id);
-        const peers = fwd
-          ? nodes[i].outIds.map((t) => (stage[idxT(t)] === c + 1 ? posIn(c + 1, idxT(t)) : -1))
-          : incomingRough[i].map((u) => (stage[u] === c - 1 ? posIn(c - 1, u) : -1));
-        return { i, s: bary(i, peers) };
+  // sub-deret UNTUK tiap role: pivot = maks SUB_MAX
+  const subStart = new Map<number, number[]>(); // (key rolecol) -> [start-slot], el of slotsByRole dipotong
+  const slotSubOf = new Map<number, number>();  // node idx -> sub-deret dlm role col
+  const slotRowOf = new Map<number, number>();
+  const colHeaders: Graph['colHeaders'] = [];
+  let maxW = 0, maxRows = 0;
+
+  const sortedRoleCols = [...slotsByRole.keys()].sort((x, y) => x - y);
+  for (const rc of sortedRoleCols) {
+    const arr = slotsByRole.get(rc)!;
+    // barycenter utk urut baris dlm role (jaga korelas anak-induk berdekatan)
+    const inc = nodes.map((_, j) => nodes.map((k, si) => k.outIds.includes(nodes[j]?.id) ? si : -1).filter((v) => v >= 0));
+    const incomingOrder = arr.map((i) => inc[i].map((u) => arr.indexOf(u)).filter((p) => p >= 0));
+    const pairs = arr.map((i, p) => {
+      const pr = incomingOrder[p];
+      return { i, s: pr.length ? pr.reduce((x, y) => x + y, 0) / pr.length : p };
+    });
+    pairs.sort((x, y) => x.s - y.s || x.i - y.i);
+    const ordered = pairs.map((p) => p.i);
+
+    const subCount = Math.max(1, Math.ceil(ordered.length / SUB_MAX));
+    for (let b = 0; b < subCount; b++) {
+      const slice = ordered.slice(b * SUB_MAX, (b + 1) * SUB_MAX);
+      const x0 = colX(rc) + b * (W + SUB_GAP);
+      // header utk sub-deret pertama saja (sub samping tdk perlu label)
+      colHeaders.push({
+        x: x0, w: W,
+        label: b === 0 ? (COL_LABEL[rc]?.label ?? '') : '',
+        cls: COL_LABEL[rc]?.cls ?? 'text-gray-400',
       });
-      scored.sort((a, b) => a.s - b.s || a.i - b.i);
-      columns[c] = scored.map((x) => x.i);
+      slice.forEach((ni, r) => {
+        slotSubOf.set(ni, b);
+        slotRowOf.set(ni, r);
+        maxW = Math.max(maxW, x0 + W + PAD_X);
+        maxRows = Math.max(maxRows, r + 1);
+      });
+      if (b === 0) maxW = Math.max(maxW, x0 + W + PAD_X);
     }
   }
-  // buang kolom kosong di ujung kanan (bila tak ada convert / tanpa role)
-  while (columns.length > 1 && columns[columns.length - 1].length === 0) columns.pop();
 
+  // posisi piksel per node
   const pos = new Map<string, Box>();
-  columns.forEach((rows, col) => rows.forEach((i, r) => pos.set(nodes[i].id, { x: colX(col), y: rowY(r) })));
-  const maxRows = columns.reduce((m, c) => Math.max(m, c.length), 1);
-  const width = colX(Math.max(0, columns.length - 1)) + W + PAD_X;
-  const height = rowY(maxRows - 1) + H + PAD_BOT;
+  for (let i = 0; i < n; i++) {
+    const rc = roleCol[i];
+    const b = slotSubOf.get(i) ?? 0;
+    const r = slotRowOf.get(i) ?? 0;
+    pos.set(nodes[i].id, { x: colX(rc) + b * (W + SUB_GAP), y: rowY(r) });
+  }
 
-  // ===== RUTE PANAH ORTHOGONAL (rapi, arah selalu kiri->kanan tepat) =====
-  // keluar tepi KANAN sumber -> corner -> koridor vertical (tiap edge beda lane) -> corner -> masuk tepi KIRI target.
-  // lewat ATAS utk lintas jauh/mundur (di luar baris kotak), ATAS koridor minor utk maju dekat (di lorong).
-  // ===== RUTE PANAH ORTHOGONAL (arme rapi — arah selalu: keluar KANAN sumber -> masuk KIRI target) =====
-  // Thomas Maju 1 kolom : koridor VT tepat di LORONG antara 2 kolom (beda offset per edge = tak menumpuk)
-  // Lintas jauh / setara / mundur : naik lane atas (antara label & baris 1) -> horizontal -> turun di lorong kiri TARGET
+  const width = Math.max(maxW, colX(sortedRoleCols[sortedRoleCols.length - 1]) + W + PAD_X);
+  const height = rowY(Math.max(1, maxRows) - 1) + H + PAD_BOT;
+  if (sortedRoleCols.length) maxRows = maxRows; // no-op keep var used
+
   // ===== RUTE PANAH — SEMUA bezier murni (tanpa siku, tanpa L) =====
-  // maju kolom dekat : 1 kurva halus dari tepi kanan sumber ke tepi kiri target (margin 9px — tak menempel).
-  // setara/mundur/kembali kolom : keluar kanan -> naik landai ke lane per-edge -> horizontal -> turun landai masuk kiri.
+  // maju : satu kurva halus kanan-sumber -> kiri-target (margin 6/9 — tak menempel).
+  // setara/mundur : keluar kanan -> naik landai lane per-edge -> horizontal -> turun landai masuk kiri.
   const edges: { d: string }[] = [];
   let eN = 0;
-  const O = 6;   // jarak keluar dari tepi kanan
-  const E = 9;   // margin masuk sebelum tepi kiri target
+  const O = 6, E = 9;
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
       if (!pa || !pb) continue;
-      const ra = rowOf(stage, columns, nodes[a].id);
-      const rb = rowOf(stage, columns, nodes[b].id);
+      const ra = slotRowOf.get(a) ?? -1;
+      const rb = slotRowOf.get(b) ?? -1;
       if (ra < 0 || rb < 0) continue;
-      const x0 = pa.x + W + O,    y0 = midY(ra);   // tepi kanan sumber +6
-      const x1 = pb.x - E,        y1 = midY(rb);   // tepi kiri target -9
-      const ca = stage[a], cb = stage[b];
+      const x0 = pa.x + W + O, y0 = rowY(ra) + H / 2;
+      const x1 = pb.x - E,     y1 = rowY(rb) + H / 2;
+      const ca = roleCol[a], cb = roleCol[b];
       const li = eN++;
-
       if (cb > ca) {
-        // maju: satu kurva ganda halus — dorong kontrol keluar masuk biar bentuk S landai, bukan siku
         edges.push({ d: d_push(x0, y0, x1, y1, li) });
       } else {
-        // lane per-edge (4 slot) di antara baris label & kotak pertama
         const lane = LANE_MIN + (li % 4) * LANE_STEP;
-        const upX = Math.max(x0 + 16, pa.x + W + 18);          // titik naik dkt sumber
-        const dnX = Math.max(x1 - 48, pb.x - 60 - (li % 3) * 14); // titik turun sblm target
+        const upX = Math.max(x0 + 16, pa.x + W + 18);
+        const dnX = Math.max(x1 - 48, pb.x - 60 - (li % 3) * 14);
         edges.push({ d: d_lane(x0, y0, x1, y1, upX, dnX, lane) });
       }
     }
@@ -150,10 +166,10 @@ function runLayout(nodes: GNode[]): Graph {
 
   // kurva maju 1 langkah — landai keluar kanan, landai masuk kiri (tanpa sudut)
   function d_push(ax: number, ay: number, bx: number, by: number, seed: number): string {
-    const sag = 30 + (seed % 3) * 12; // varian antar-edge biar kurva tak sekumpul
+    const sag = 30 + (seed % 3) * 12;
     return `M ${ax} ${ay} C ${ax + sag} ${ay}, ${bx - sag} ${by}, ${bx} ${by}`;
   }
-  // keluar -> naik landai -> horizontal -> turun landai -> masuk kiri (semua segmen bezier)
+  // keluar -> naik landai -> horizontal -> turun landai -> masuk kiri (semua bezier)
   function d_lane(ax: number, ay: number, bx: number, by: number, upX: number, dnX: number, lane: number): string {
     return (
       `M ${ax} ${ay} ` +
@@ -163,14 +179,7 @@ function runLayout(nodes: GNode[]): Graph {
     );
   }
 
-  return { pos, edges, width, height, colRows: columns.map((c) => c.length) };
-
-  function rowOf(stg: number[], cols: number[][], id: string): number {
-    const i = nodes.findIndex((x) => x.id === id);
-    if (i < 0) return -1;
-    const r = (cols[stg[i]] ?? []).findIndex((x) => nodes[x]?.id === id);
-    return r;
-  }
+  return { pos, edges, width, height, colHeaders };
 }
 
 type Group = { name: string; all: GNode[] };
@@ -388,22 +397,22 @@ export default function VisualisasiTab({ loading, items }: Props) {
                         <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.3} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
-                    {/* label kolom funnel: INSPIRE(-> EDUKATE -> PRODUK) */}
-                    {lay!.colRows.map((cnt, i) =>
-                      cnt > 0 && COL_LABEL[i] ? (
+                    {/* label kolom funnel — satu per role (sub-deret samping dkk label kosong) */}
+                    {lay!.colHeaders.map((h, i) =>
+                      h.label ? (
                         <span
                           key={i}
-                          className={cn('absolute text-[10px] font-black tracking-wider text-center leading-none', COL_LABEL[i].cls)}
-                          style={{ left: colX(i), width: W, top: 12 }}
+                          className={cn('absolute text-[10px] font-black tracking-wider text-center leading-none', h.cls)}
+                          style={{ left: h.x, width: h.w, top: 12 }}
                         >
-                          {COL_LABEL[i].label}
+                          {h.label}
                         </span>
                       ) : null
                     )}
                     {g.all.map((k) => {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;
-                      const cls = k.member ? (ROLE_FILL[k.role] ?? FALLBACK_FILL) : TARGET_FILL;
+                      const cls = fillOf(k);
                       return (
                         <div
                           key={k.id}
