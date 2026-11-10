@@ -30,6 +30,9 @@ type Props = {
   onProdAdd: (row: any) => Promise<boolean>;
   onProdUpdate: (id: string, patch: any) => Promise<boolean>;
   onProdDelete: (id: string) => Promise<boolean>;
+  // kontrol sub-bab (mengalir dari header App)
+  sub: 'artikel' | 'produk';
+  setSub: (v: 'artikel' | 'produk') => void;
 };
 
 const ROLES = ['inspire', 'educate', 'convert'] as const;
@@ -59,9 +62,7 @@ type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 const splitLinks = (v: string | null): string[] =>
   (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
 
-export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, prodLoading, prodItems, onProdAdd, onProdUpdate, onProdDelete }: Props) {
-  // sub-bab: Artikel (daftar lama) | Produk (tabel baru)
-  const [sub, setSub] = useState<'artikel' | 'produk'>('artikel');
+export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, prodLoading, prodItems, onProdAdd, onProdUpdate, onProdDelete, sub, setSub }: Props) {
   const [modal, setModal] = useState<Modal>(null);
   const [draft, setDraft] = useState<Draft>({ ...kosong });
   const [busy, setBusy] = useState(false);
@@ -105,6 +106,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+      <React.Fragment>
       {/* Tombol Tambah Konten — ikon mengambang kanan bawah (sub Artikel); tombol Produk milik ProdukKonten */}
       {sub === 'artikel' && (
       <button
@@ -116,22 +118,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
         <Plus className="w-7 h-7" />
       </button>
       )}
-
-      {/* sub-bab: Artikel | Produk */}
-      <div className="inline-flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
-        {(['artikel', 'produk'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setSub(t)}
-            className={cn(
-              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all capitalize',
-              sub === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
-            )}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
 
       {/* tabel data — sub Artikel */}
       {sub === 'artikel' && (
@@ -230,6 +216,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
           onDelete={onProdDelete}
         />
       )}
+      </React.Fragment>
 
       {/* ===== POPUP FORM: tambah / edit ===== */}
       <AnimatePresence>

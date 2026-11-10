@@ -245,6 +245,8 @@ export default function App() {
   const [contentLoading, setContentLoading] = useState(false);
   const [productItems, setProductItems] = useState<ProductItem[]>([]);
   const [productLoading, setProductLoading] = useState(false);
+  // sub-bab Tab Konten: artikel | produk (tampil di header)
+  const [kontenSub, setKontenSub] = useState<'artikel' | 'produk'>('artikel');
   // Overview (ringkasan performa)
   const [ovData, setOvData] = useState<any>(null);
   const [ovLoading, setOvLoading] = useState(false);
@@ -2708,6 +2710,26 @@ export default function App() {
               </div>
             )}
 
+            {/* Sub-bab Tab Konten (Artikel | Produk) — di header */}
+            {currentTab === 'konten' && (
+              <div className="hidden md:flex flex-1 items-center justify-center gap-1.5 min-w-0">
+                {(['artikel', 'produk'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setKontenSub(t)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all capitalize whitespace-nowrap',
+                      kontenSub === t
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -2987,6 +3009,26 @@ export default function App() {
         </div>
       )}
 
+      {/* Sub-bab Tab Konten — layar kecil */}
+      {currentTab === 'konten' && (
+        <div className="md:hidden sticky top-[6.3rem] z-30 bg-gray-50/95 backdrop-blur px-3 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-gray-200">
+          {(['artikel', 'produk'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setKontenSub(t)}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-bold border transition-all capitalize whitespace-nowrap',
+                kontenSub === t
+                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
       <main className="max-w-[1600px] mx-auto p-6">
         <AnimatePresence mode="wait">
           {currentTab === 'cek' && (
@@ -3018,6 +3060,8 @@ export default function App() {
                 onAdd={addContent}
                 onUpdate={updateContent}
                 onDelete={deleteContent}
+                sub={kontenSub}
+                setSub={setKontenSub}
                 prodLoading={productLoading}
                 prodItems={productItems}
                 onProdAdd={addProduct}
