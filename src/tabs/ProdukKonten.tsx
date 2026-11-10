@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link2, Plus, RefreshCw, Save, ShoppingBag, Trash2, X, Pencil } from 'lucide-react';
+import { Plus, RefreshCw, Save, ShoppingBag, Trash2, X, Pencil, Folder, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink } from 'lucide-react';
 import { cn } from '../lib/utils';
 import DateField from '../components/DateField';
 import { fmtTanggal } from '../lib/dateFormat';
@@ -41,21 +41,45 @@ type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 const fmtHarga = (v: number | null) =>
   v == null ? '—' : `Rp ${Number(v).toLocaleString('id-ID')}`;
 
-const COLS = [
-  'Kategori',
-  'Nama Produk',
-  'Judul Produk',
-  'Link Artikel',
-  'Link Shopee',
-  'Harga',
-  'Tgl. Publikasi',
-  'Aksi',
-];
+const COLS = ['Nama Produk', 'Judul Produk', 'Link Artikel', 'Link Shopee', 'Harga', 'Tgl. Publikasi', 'Aksi'];
 
 export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete }: Props) {
   const [modal, setModal] = useState<Modal>(null);
   const [draft, setDraft] = useState<Draft>({ ...kosong });
   const [busy, setBusy] = useState(false);
+  // ===== toolbar (gaya sama dgn sub Artikel): cari, filter, urut, statistik, tutup semua =====
+  const [q, setQ] = useState('');
+  const [katFilter, setKatFilter] = useState(''); // '' = semua kategori
+  const [sort, setSort] = useState<'terbaru' | 'terlama'>('terbaru');
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({}); // default: terbuka
+
+  const keyOf = (d?: string | null) => d || '';
+  const matches = (hay: string) => !q || hay.toLowerCase().includes(q.toLowerCase());
+  const katName = (v: string | null) => (v || '').trim() || 'Tanpa Kategori';
+
+  const katOptions = [...new Set(items.map((p) => katName(p.kategori)))].sort((a, b) => a.localeCompare(b));
+
+  const vis = items
+    .filter((p) => !katFilter || katName(p.kategori) === katFilter)
+    .filter((p) => matches(`${p.nama_produk} ${p.judul_produk || ''} ${p.kategori || ''}`))
+    .sort((a, b) => {
+      const ka = keyOf(a.tanggal_publikasi || a.created_at), kb = keyOf(b.tanggal_publikasi || b.created_at);
+      return sort === 'terbaru' ? kb.localeCompare(ka) : ka.localeCompare(kb);
+    });
+
+  // kelompok per Kategori (kepala grup — persis pola sub Artikel)
+  const groups: { name: string; rows: ProductItem[] }[] = [];
+  for (const p of vis) {
+    const key = katName(p.kategori);
+    const g = groups.find((x) => x.name === key);
+    if (g) g.rows.push(p); else groups.push({ name: key, rows: [p] });
+  }
+  const allOpen = groups.length > 0 && groups.every((g) => openMap[g.name] !== false);
+  const toggleAll = () => {
+    const next: Record<string, boolean> = {};
+    groups.forEach((g) => { next[g.name] = !allOpen ? false : true; });
+    setOpenMap({ ...openMap, ...next });
+  };
 
   const openAdd = () => { setDraft({ ...kosong }); setModal({ mode: 'add' }); };
   const openEdit = (it: ProductItem) => {
@@ -92,7 +116,7 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
   const cellInput = 'w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500';
   const iconBtn = 'p-1.5 rounded-lg transition-colors';
 
-  // tombol link: ikon, bukan teks
+  // tombol link: ikon panah keluar kotak (gaya sama kolom Link artikel), warna membedakan tujuan
   const linkCell = (href: string | null, type: 'artikel' | 'shopee') =>
     href ? (
       <a
@@ -104,11 +128,11 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
         className={cn(
           'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
           type === 'artikel'
-            ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
-            : 'text-orange-600 hover:bg-orange-50 hover:text-orange-700'
+            ? 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50'
+            : 'text-orange-500 hover:text-orange-600 hover:bg-orange-50'
         )}
       >
-        {type === 'artikel' ? <Link2 className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+        {type === 'artikel' ? <ExternalLink className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
       </a>
     ) : (
       <span className="text-gray-400">—</span>
@@ -126,58 +150,130 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
         <Plus className="w-7 h-7" />
       </button>
 
-      {/* tabel data */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full text-left align-top" style={{ minWidth: 980 }}>
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              {COLS.map((h) => (
-                <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400 whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading && items.length === 0 && (
-              <tr><td colSpan={COLS.length} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat...</td></tr>
+      {/* ===== Toolbar (gaya sub Artikel): cari, filter, urut, statistik, tutup semua ===== */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Cari nama produk, judul, atau kategori..."
+            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+        <select
+          value={katFilter}
+          onChange={(e) => setKatFilter(e.target.value)}
+          className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:border-emerald-500"
+        >
+          <option value="">Semua Kategori</option>
+          {katOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <button
+          onClick={() => setSort(sort === 'terbaru' ? 'terlama' : 'terbaru')}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-emerald-300"
+          title="Balik urutkan"
+        >
+          {sort === 'terbaru' ? 'Tanggal Terbaru' : 'Tanggal Terlama'}
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        </button>
+        <div className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-500 whitespace-nowrap">
+          Total Grup: <b className="text-emerald-600">{groups.length} Kategori</b>
+          <span className="mx-1.5 text-gray-300">&bull;</span>
+          Total Konten: <b className="text-emerald-600">{vis.length} Produk</b>
+        </div>
+        <button
+          onClick={toggleAll}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-emerald-300 whitespace-nowrap"
+          title={allOpen ? 'Tutup semua grup' : 'Buka semua grup'}
+        >
+          {allOpen ? <ChevronsDownUp className="w-4 h-4 text-gray-400" /> : <ChevronsUpDown className="w-4 h-4 text-gray-400" />}
+          {allOpen ? 'Collapse Semua' : 'Buka Semua'}
+        </button>
+      </div>
+
+      {/* ===== Produk terkelompok per Kategori (kartu accordion — gaya sama artikel) ===== */}
+      <div className="space-y-3">
+        {loading && items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-2xl px-4 py-8 text-center text-gray-400 text-sm">Memuat...</div>
+        )}
+        {!loading && vis.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-2xl px-4 py-10 text-center text-gray-400 text-sm">
+            {items.length === 0
+              ? <>Belum ada produk. Klik tombol <b>+</b> di kanan bawah untuk menambah produk.</>
+              : <>Tidak ada produk yang cocok dengan pencarian/filter.</>}
+          </div>
+        )}
+        {groups.map((g) => {
+          const open = openMap[g.name] !== false;
+          return (
+          <div key={g.name} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            {/* kepala grup */}
+            <button
+              onClick={() => setOpenMap({ ...openMap, [g.name]: !open })}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50/60 transition-colors"
+              aria-expanded={open}
+            >
+              <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                <Folder className="w-4 h-4 text-emerald-600" />
+              </span>
+              <span className="font-bold text-sm text-gray-900 truncate">{g.name}</span>
+              <span className="shrink-0 inline-block px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold">
+                {g.rows.length} Produk
+              </span>
+              <span className="ml-auto flex items-center gap-1.5 text-[11px] text-gray-400 whitespace-nowrap">
+                Klik untuk tutup/buka
+                <ChevronDown className={cn('w-4 h-4 text-gray-500 transition-transform', open ? '' : '-rotate-90')} />
+              </span>
+            </button>
+
+            {/* tabel dalam grup */}
+            {open && (
+              <div className="overflow-x-auto border-t border-gray-100">
+                <table className="w-full text-left align-top" style={{ minWidth: 680 }}>
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                      {COLS.map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {g.rows.map((it) => (
+                      <tr key={it.id} className="hover:bg-gray-50/60 align-top">
+                        <td className="px-4 py-2.5 max-w-[260px]">
+                          <span className="text-sm text-gray-900 block leading-snug break-words whitespace-normal" title={it.nama_produk}>{it.nama_produk}</span>
+                        </td>
+                        <td className="px-4 py-2.5 max-w-[300px]">
+                          <span className="text-xs text-gray-500 whitespace-normal break-words" title={it.judul_produk || ''}>{it.judul_produk || '—'}</span>
+                        </td>
+                        <td className="px-4 py-2.5">{linkCell(it.link_artikel, 'artikel')}</td>
+                        <td className="px-4 py-2.5">{linkCell(it.link_shopee, 'shopee')}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs tabular-nums">{fmtHarga(it.harga)}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => openEdit(it)} className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700')} title="Ubah" aria-label="Ubah">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => window.confirm(`Hapus produk "${it.nama_produk}"?`) && onDelete(it.id)} className={cn(iconBtn, 'text-gray-400 hover:text-red-600 hover:bg-red-50')} title="Hapus" aria-label="Hapus">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-            {!loading && items.length === 0 && (
-              <tr>
-                <td colSpan={COLS.length} className="px-4 py-10 text-center text-gray-400 text-sm">
-                  Belum ada produk. Klik tombol <b>+</b> di kanan bawah untuk menambah produk.
-                </td>
-              </tr>
-            )}
-            {items.map((it) => (
-              <tr key={it.id} className="hover:bg-gray-50/60 align-top">
-                <td className="px-4 py-2.5"><span className="text-xs text-gray-600 break-words whitespace-normal">{it.kategori || '—'}</span></td>
-                <td className="px-4 py-2.5 max-w-[220px]">
-                  <span className="text-xs font-semibold text-gray-800 block break-words whitespace-normal" title={it.nama_produk}>{it.nama_produk}</span>
-                </td>
-                <td className="px-4 py-2.5 max-w-[260px]">
-                  <span className="text-xs text-gray-800 block break-words whitespace-normal" title={it.judul_produk || ''}>{it.judul_produk || '—'}</span>
-                </td>
-                <td className="px-4 py-2.5">{linkCell(it.link_artikel, 'artikel')}</td>
-                <td className="px-4 py-2.5">{linkCell(it.link_shopee, 'shopee')}</td>
-                <td className="px-4 py-2.5">
-                  <span className="text-xs font-semibold text-gray-800 whitespace-nowrap tabular-nums">{fmtHarga(it.harga)}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="text-xs text-gray-600 break-words whitespace-normal">{fmtTanggal(it.tanggal_publikasi)}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => openEdit(it)} className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700')} title="Ubah" aria-label="Ubah">
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => window.confirm(`Hapus produk "${it.nama_produk}"?`) && onDelete(it.id)} className={cn(iconBtn, 'text-gray-400 hover:text-red-600 hover:bg-red-50')} title="Hapus" aria-label="Hapus">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          </div>
+          );
+        })}
       </div>
 
       {/* ===== POPUP FORM: tambah / edit produk ===== */}
