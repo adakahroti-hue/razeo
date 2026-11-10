@@ -116,8 +116,13 @@ function runLayout(nodes: GNode[]): Graph {
   // ===== RUTE PANAH ORTHOGONAL (arme rapi — arah selalu: keluar KANAN sumber -> masuk KIRI target) =====
   // Thomas Maju 1 kolom : koridor VT tepat di LORONG antara 2 kolom (beda offset per edge = tak menumpuk)
   // Lintas jauh / setara / mundur : naik lane atas (antara label & baris 1) -> horizontal -> turun di lorong kiri TARGET
+  // ===== RUTE PANAH — SEMUA bezier murni (tanpa siku, tanpa L) =====
+  // maju kolom dekat : 1 kurva halus dari tepi kanan sumber ke tepi kiri target (margin 9px — tak menempel).
+  // setara/mundur/kembali kolom : keluar kanan -> naik landai ke lane per-edge -> horizontal -> turun landai masuk kiri.
   const edges: { d: string }[] = [];
   let eN = 0;
+  const O = 6;   // jarak keluar dari tepi kanan
+  const E = 9;   // margin masuk sebelum tepi kiri target
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
@@ -125,38 +130,37 @@ function runLayout(nodes: GNode[]): Graph {
       const ra = rowOf(stage, columns, nodes[a].id);
       const rb = rowOf(stage, columns, nodes[b].id);
       if (ra < 0 || rb < 0) continue;
-      const ax = pa.x + W, ay = midY(ra);   // tepi KANAN sumber
-      const bx = pb.x,     by = midY(rb);   // tepi KIRI target
+      const x0 = pa.x + W + O,    y0 = midY(ra);   // tepi kanan sumber +6
+      const x1 = pb.x - E,        y1 = midY(rb);   // tepi kiri target -9
       const ca = stage[a], cb = stage[b];
       const li = eN++;
 
-      let d: string;
-      if (cb === ca + 1) {
-        // maju dekat: angkat keluar kanan -> turun di lorong (x berbeda per edge) -> masuk kiri target
-        const xc = ax + 22 + (li % 3) * 17;              // 22..56 — dlm lorong (GX=104)
-        const dir = by > ay ? 1 : -1;
-        d =
-          `M ${ax} ${ay} ` +
-          `C ${ax + 14} ${ay}, ${xc - 12} ${ay}, ${xc} ${ay + dir * 12} ` +
-          `C ${xc} ${ay + dir * 20}, ${xc} ${by - dir * 20}, ${xc} ${by - dir * 12} ` +
-          `C ${xc} ${by}, ${bx - 14} ${by}, ${bx - 4} ${by}`;
+      if (cb > ca) {
+        // maju: satu kurva ganda halus — dorong kontrol keluar masuk biar bentuk S landai, bukan siku
+        edges.push({ d: d_push(x0, y0, x1, y1, li) });
       } else {
-        // lintas jauh / setara / mundur: keluar kanan -> lane atas -> turun lorong kiri target -> masuk kiri
-        const lane = LANE_MIN + (li % 4) * LANE_STEP;     // 30..60 (dk bidang aman label..baris)
-        const kR = ax + 20;                                // titik naik — masih di lorong kanan sumber
-        const kL = Math.max(colX(cb) - 40, Math.min(-8, bx - 28)); // di kiri target; ≥-8 biar tak kepotong scroller & arah akhir selalu ke kanan
-        const r = 12;
-        d =
-          `M ${ax} ${ay} ` +
-          `C ${kR - 14} ${ay}, ${kR} ${ay - r}, ${kR} ${ay - r * 2} ` +
-          `L ${kR} ${lane} ` +
-          `C ${kR} ${lane + 10}, ${kL - 10} ${lane}, ${kL} ${lane} ` +
-          `C ${kL} ${lane + 10}, ${kL} ${by - r * 2}, ${kL} ${by - r} ` +
-          `C ${kL} ${by}, ${kL + r * 1.4} ${by}, ${kL + r * 2} ${by} ` +
-          `L ${bx - 4} ${by}`;
+        // lane per-edge (4 slot) di antara baris label & kotak pertama
+        const lane = LANE_MIN + (li % 4) * LANE_STEP;
+        const upX = Math.max(x0 + 16, pa.x + W + 18);          // titik naik dkt sumber
+        const dnX = Math.max(x1 - 48, pb.x - 60 - (li % 3) * 14); // titik turun sblm target
+        edges.push({ d: d_lane(x0, y0, x1, y1, upX, dnX, lane) });
       }
-      edges.push({ d });
     }
+  }
+
+  // kurva maju 1 langkah — landai keluar kanan, landai masuk kiri (tanpa sudut)
+  function d_push(ax: number, ay: number, bx: number, by: number, seed: number): string {
+    const sag = 30 + (seed % 3) * 12; // varian antar-edge biar kurva tak sekumpul
+    return `M ${ax} ${ay} C ${ax + sag} ${ay}, ${bx - sag} ${by}, ${bx} ${by}`;
+  }
+  // keluar -> naik landai -> horizontal -> turun landai -> masuk kiri (semua segmen bezier)
+  function d_lane(ax: number, ay: number, bx: number, by: number, upX: number, dnX: number, lane: number): string {
+    return (
+      `M ${ax} ${ay} ` +
+      `C ${ax + 20} ${ay}, ${upX - 10} ${ay - 10}, ${upX} ${lane} ` +
+      `C ${upX + 16} ${lane}, ${dnX - 16} ${lane}, ${dnX} ${lane} ` +
+      `C ${dnX + 44} ${lane}, ${bx - 40} ${by + (lane > by ? 26 : -26)}, ${bx} ${by}`
+    );
   }
 
   return { pos, edges, width, height, colRows: columns.map((c) => c.length) };
