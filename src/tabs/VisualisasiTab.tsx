@@ -46,12 +46,12 @@ const colOfNode = (k: GNode) => (k.colOverride !== undefined ? k.colOverride : c
 const W = 214;
 const H = 46;
 const RG = 22;
-const GX = 94;
+const GX = 104;      // lorong lebih lega — kelonggaran rute panah
 const PAD_X = 22;
-const PAD_TOP = 46;
-const PAD_BOT = 16;
-const LANE_A = 16;
-const LANE_B = 30;
+const PAD_TOP = 66;  // band atas utk LABEL kolom + lane balik, jauh dari baris kotak
+const PAD_BOT = 20;
+const LANE_MIN = 30;  // lane atas mulai (d bawah label ~25, d atas baris gtk 66)
+const LANE_STEP = 10;  // step sinkronin 4 slot utk hindari menumpuk
 
 const colX = (c: number) => PAD_X + c * (W + GX);
 const rowY = (r: number) => PAD_TOP + r * (H + RG);
@@ -110,8 +110,14 @@ function runLayout(nodes: GNode[]): Graph {
   const width = colX(Math.max(0, columns.length - 1)) + W + PAD_X;
   const height = rowY(maxRows - 1) + H + PAD_BOT;
 
-  const gutter = (col: number) => colX(Math.min(col, Math.max(0, columns.length - 1))) - GX / 2 + 8;
+  // ===== RUTE PANAH ORTHOGONAL (rapi, arah selalu kiri->kanan tepat) =====
+  // keluar tepi KANAN sumber -> corner -> koridor vertical (tiap edge beda lane) -> corner -> masuk tepi KIRI target.
+  // lewat ATAS utk lintas jauh/mundur (di luar baris kotak), ATAS koridor minor utk maju dekat (di lorong).
+  // ===== RUTE PANAH ORTHOGONAL (arme rapi — arah selalu: keluar KANAN sumber -> masuk KIRI target) =====
+  // Thomas Maju 1 kolom : koridor VT tepat di LORONG antara 2 kolom (beda offset per edge = tak menumpuk)
+  // Lintas jauh / setara / mundur : naik lane atas (antara label & baris 1) -> horizontal -> turun di lorong kiri TARGET
   const edges: { d: string }[] = [];
+  let eN = 0;
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
@@ -119,27 +125,40 @@ function runLayout(nodes: GNode[]): Graph {
       const ra = rowOf(stage, columns, nodes[a].id);
       const rb = rowOf(stage, columns, nodes[b].id);
       if (ra < 0 || rb < 0) continue;
-      const ax = pa.x + W, ay = midY(ra), bx = pb.x, by = midY(rb);
+      const ax = pa.x + W, ay = midY(ra);   // tepi KANAN sumber
+      const bx = pb.x,     by = midY(rb);   // tepi KIRI target
+      const ca = stage[a], cb = stage[b];
+      const li = eN++;
+
       let d: string;
-      if (stage[b] > stage[a]) {
-        // maju ke kanan (funnel normal): curve di lorong
-        const gx = (ax + bx) / 2;
-        d = `M ${ax} ${ay} C ${gx} ${ay}, ${gx} ${by}, ${bx - 7} ${by}`;
-      } else {
-        // setara/kiri (lintas role ke arah berlawanan / sesama kolom): naik lane atas -> masuk kiri
-        const lane = LANE_A + ((a + b) % 2) * (LANE_B - LANE_A);
-        const gOut = gutter(Math.max(0, stage[a] + (stage[a] < columns.length - 1 ? 1 : 0)));
-        const gIn = gutter(stage[b]);
+      if (cb === ca + 1) {
+        // maju dekat: angkat keluar kanan -> turun di lorong (x berbeda per edge) -> masuk kiri target
+        const xc = ax + 22 + (li % 3) * 17;              // 22..56 — dlm lorong (GX=104)
+        const dir = by > ay ? 1 : -1;
         d =
           `M ${ax} ${ay} ` +
-          `C ${ax + 24} ${ay}, ${gOut + 18} ${ay}, ${gOut} ${lane} ` +
-          `L ${gIn} ${lane} ` +
-          `C ${gIn} ${lane + 26}, ${gIn} ${by}, ${gIn + 24} ${by} ` +
-          `L ${bx - 7} ${by}`;
+          `C ${ax + 14} ${ay}, ${xc - 12} ${ay}, ${xc} ${ay + dir * 12} ` +
+          `C ${xc} ${ay + dir * 20}, ${xc} ${by - dir * 20}, ${xc} ${by - dir * 12} ` +
+          `C ${xc} ${by}, ${bx - 14} ${by}, ${bx - 4} ${by}`;
+      } else {
+        // lintas jauh / setara / mundur: keluar kanan -> lane atas -> turun lorong kiri target -> masuk kiri
+        const lane = LANE_MIN + (li % 4) * LANE_STEP;     // 30..60 (dk bidang aman label..baris)
+        const kR = ax + 20;                                // titik naik — masih di lorong kanan sumber
+        const kL = Math.max(colX(cb) - 40, Math.min(-8, bx - 28)); // di kiri target; ≥-8 biar tak kepotong scroller & arah akhir selalu ke kanan
+        const r = 12;
+        d =
+          `M ${ax} ${ay} ` +
+          `C ${kR - 14} ${ay}, ${kR} ${ay - r}, ${kR} ${ay - r * 2} ` +
+          `L ${kR} ${lane} ` +
+          `C ${kR} ${lane + 10}, ${kL - 10} ${lane}, ${kL} ${lane} ` +
+          `C ${kL} ${lane + 10}, ${kL} ${by - r * 2}, ${kL} ${by - r} ` +
+          `C ${kL} ${by}, ${kL + r * 1.4} ${by}, ${kL + r * 2} ${by} ` +
+          `L ${bx - 4} ${by}`;
       }
       edges.push({ d });
     }
   }
+
   return { pos, edges, width, height, colRows: columns.map((c) => c.length) };
 
   function rowOf(stg: number[], cols: number[][], id: string): number {
@@ -237,12 +256,12 @@ export default function VisualisasiTab({ loading, items }: Props) {
           if (inGroup.has(tid) || addSet.has(tid)) continue;
           const real = nodeById.get(tid);
           if (real) {
-            // tujuan artikel kategori lain — ghost dgn role SAMA dgn artikel aslinya (utk tetap di kolom role-nya)
-            const gp: GNode = { id: tid, kw: real.kw, role: real.role, member: false, outIds: [] };
+            // tujuan artikel kategori lain — ghost dgn role/col SAMA dgn artikel aslinya
+            const gp: GNode = { id: tid, kw: real.kw, role: real.role, member: false, outIds: [], colOverride: real.colOverride };
             add.push(gp); addSet.add(tid);
           } else {
             const ph = probePhantom.get(tid)!;
-            const gp: GNode = { id: ph.id, kw: ph.kw, role: '', member: false, outIds: [] };
+            const gp: GNode = { id: ph.id, kw: ph.kw, role: ph.role, member: false, outIds: [], colOverride: ph.colOverride };
             add.push(gp); addSet.add(tid);
           }
         }
@@ -355,7 +374,7 @@ export default function VisualisasiTab({ loading, items }: Props) {
               {open && (
                 <div className="border-t border-gray-100 bg-[#f6f7f9] overflow-x-auto px-3 py-3">
                   <div className="relative" style={{ width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}>
-                    <svg className="absolute inset-0 pointer-events-none" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
+                    <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
                       <defs>
                         <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                           <path d="M0,0 L10,5 L0,10 z" fill="#6366f1" />
@@ -371,7 +390,7 @@ export default function VisualisasiTab({ loading, items }: Props) {
                         <span
                           key={i}
                           className={cn('absolute text-[10px] font-black tracking-wider text-center leading-none', COL_LABEL[i].cls)}
-                          style={{ left: colX(i), width: W, top: 14 }}
+                          style={{ left: colX(i), width: W, top: 12 }}
                         >
                           {COL_LABEL[i].label}
                         </span>
