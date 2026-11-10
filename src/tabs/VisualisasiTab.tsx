@@ -152,6 +152,9 @@ function runLayout(nodes: GNode[]): Graph {
 
 type Group = { name: string; all: GNode[] };
 
+// READ-ONLY: tab ini HANYA menampilkan ringkasan visual dari tab Konten.
+// Kontrak: jangan menambahkan tombol tambah/ubah/hapus, form, atau callback tulis (onAdd/onUpdate/onDelete).
+// Sumber data = contentItems tab Konten (di App), disaring tampilan oleh state lokal (cari/buka-tutup) saja.
 export default function VisualisasiTab({ loading, items }: Props) {
   const [q, setQ] = useState('');
   const kwMap = useMemo(() => keywordMap(items), [items]);
@@ -407,8 +410,14 @@ export default function VisualisasiTab({ loading, items }: Props) {
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#f2994a]" /> convert</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#9aa3af]" /> tanpa role</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md border-2 border-dashed border-indigo-300 bg-white" /> tujuan internal link</span>
+        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+          READ-ONLY
+        </span>
         <span className="text-gray-300 hidden md:inline">|</span>
-        <span><Link2 className="w-3 h-3 inline" /> semua isi kolom <b>Internal Link</b> di tab Konten tampil Sebagai kotak putus-putus (entri 1 per baris, urutan grup/role/tanggal identik dgn tab Konten)</span>
+        <span><Link2 className="w-3 h-3 inline" /> semua data & tampilan mengikuti <b>tab Konten</b> — tak ada input di sini; ubah konten lewat tab Konten</span>
       </p>
     </motion.div>
   );
