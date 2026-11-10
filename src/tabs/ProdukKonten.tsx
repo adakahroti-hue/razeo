@@ -42,6 +42,11 @@ const fmtHarga = (v: number | null) =>
   v == null ? '—' : `Rp ${Number(v).toLocaleString('id-ID')}`;
 
 const COLS = ['Nama Produk', 'Judul Produk', 'Harga', 'Tgl. Publikasi', 'Link Artikel', 'Link Shopee', 'Aksi'];
+// lebar kolom (persen): 2 super panjang (teks jangan terpotong turun) — link/aksi ramping (isinya cuma ikon)
+const COL_W: Record<string, number> = {
+  'Nama Produk': 24, 'Judul Produk': 30, 'Harga': 11, 'Tgl. Publikasi': 11,
+  'Link Artikel': 7, 'Link Shopee': 7, 'Aksi': 10,
+};
 
 export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete }: Props) {
   const [modal, setModal] = useState<Modal>(null);
@@ -233,7 +238,7 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
                 <table className="w-full table-fixed text-left align-top" style={{ minWidth: 680 }}>
                     <colgroup>
                       {COLS.map((h) => (
-                        <col key={h} style={{ width: `${100 / COLS.length}%` }} />
+                        <col key={h} style={{ width: `${COL_W[h] ?? 100 / COLS.length}%` }} />
                       ))}
                     </colgroup>
                   <thead>

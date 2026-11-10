@@ -272,7 +272,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                 <table className="w-full text-left align-top" style={{ minWidth: 940 }}>
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
-                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Isi Artikel', 'Aksi'].map((h) => (
+                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Isi Artikel', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Aksi'].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -305,6 +305,12 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                           <span className="text-xs text-gray-500 whitespace-normal break-words" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
                         </td>
                         <td className="px-4 py-2.5">
+                          <button onClick={() => setPreview(it)} title="Lihat isi artikel (HTML)" aria-label="Lihat isi artikel"
+                                  className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700', !it.isi_artikel && 'opacity-40')}>
+                            <FileCode className="w-4 h-4" />
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5">
                           <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
                         </td>
                         <td className="px-4 py-2.5">
@@ -332,12 +338,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                               </div>
                             );
                           })()}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <button onClick={() => setPreview(it)} title="Lihat isi artikel (HTML)" aria-label="Lihat isi artikel"
-                                  className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700', !it.isi_artikel && 'opacity-40')}>
-                            <FileCode className="w-4 h-4" />
-                          </button>
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
@@ -393,7 +393,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.18 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6 max-h-[88vh] flex flex-col"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-5 max-h-[92vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
@@ -407,15 +407,20 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-5">
+              {/* area baca Artikel: lebar nyaman + tipografi panjang (nyaris mirip halaman post WordPress) */}
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100 bg-white">
                 {preview.isi_artikel ? (
-                  <div
-                    className="prose prose-sm max-w-none prose-a:text-emerald-700 [&_img]:max-w-full [&_img]:h-auto [&_h1]:text-lg [&_h2]:text-base"
+                  <article
+                    className="wp-article mx-auto w-full max-w-3xl px-6 py-7 text-gray-800"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview.isi_artikel) }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-400">Belum ada isi artikel untuk konten ini. Klik ✏️ Ubah lalu tempel HTML-nya.</p>
+                  <p className="p-6 text-sm text-gray-400">Belum ada isi artikel untuk konten ini. Klik ✏️ Ubah lalu tempel HTML-nya.</p>
                 )}
+              </div>
+              <div className="mt-3 text-[11px] text-gray-400 shrink-0 flex items-center justify-between">
+                <span>Viewer HTML — heading bawaan kode tetap tampil seperti aslinya</span>
+                <span>{(preview.isi_artikel || '').length.toLocaleString('id-ID')} karakter</span>
               </div>
             </motion.div>
           </div>
