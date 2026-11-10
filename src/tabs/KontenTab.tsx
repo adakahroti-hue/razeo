@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ProdukKonten, { type ProductItem } from './ProdukKonten';
+import DateField from '../components/DateField';
 
 export type ContentItem = {
   id: string;
@@ -14,7 +15,6 @@ export type ContentItem = {
   link_artikel: string | null;
   internal_link: string | null;
   peran: string | null;
-  prioritas: string;
   created_at?: string;
 };
 
@@ -33,18 +33,11 @@ type Props = {
 };
 
 const ROLES = ['inspire', 'educate', 'convert'] as const;
-const PRIORITAS = ['rendah', 'sedang', 'tinggi'] as const;
 // highlight warna Role: inspire=biru, educate=ungu, convert=hijau
 const roleStyle: Record<string, string> = {
   inspire: 'bg-blue-50 text-blue-700',
   educate: 'bg-purple-50 text-purple-700',
   convert: 'bg-emerald-50 text-emerald-700',
-};
-// teks senada latar pucat — shade lebih terang supaya tak gonjreng
-const prioritasStyle: Record<string, string> = {
-  rendah: 'bg-gray-100 text-gray-500',
-  sedang: 'bg-amber-50 text-amber-600',
-  tinggi: 'bg-red-50 text-red-400',
 };
 
 const kosong = {
@@ -56,7 +49,6 @@ const kosong = {
   link_artikel: '',
   internal_link: '',
   peran: '',
-  prioritas: 'sedang',
 };
 
 type Draft = typeof kosong;
@@ -85,7 +77,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
       link_artikel: it.link_artikel ?? '',
       internal_link: it.internal_link ?? '',
       peran: it.peran ?? '',
-      prioritas: it.prioritas,
     });
     setModal({ mode: 'edit', id: it.id });
   };
@@ -103,7 +94,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
       link_artikel: draft.link_artikel.trim() || null,
       internal_link: draft.internal_link.trim() || null,
       peran: draft.peran.trim() || null,
-      prioritas: draft.prioritas,
     };
     const ok = modal.mode === 'add' ? await onAdd(row) : await onUpdate(modal.id, row);
     setBusy(false);
@@ -149,17 +139,17 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
         <table className="w-full text-left align-top" style={{ minWidth: 980 }}>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Produk', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Prioritas', 'Aksi'].map((h) => (
+              {['Produk', 'Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Aksi'].map((h) => (
                 <th key={h} className="px-4 py-3 text-[11px] uppercase font-black text-gray-400 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading && items.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">Memuat...</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik tombol <b>+</b> di kanan bawah untuk mulai pendataan.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Belum ada data konten. Klik tombol <b>+</b> di kanan bawah untuk mulai pendataan.</td></tr>
             )}
             {items.map((it) => (
               <tr key={it.id} className="hover:bg-gray-50/60 align-top">
@@ -212,9 +202,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                       </div>
                     );
                   })()}
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className={cn('inline-block px-2 py-0.5 rounded-md text-xs font-bold capitalize', prioritasStyle[it.prioritas] || prioritasStyle.sedang)}>{it.prioritas}</span>
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1.5">
@@ -288,12 +275,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                   <textarea value={draft.meta_deskripsi} onChange={(e) => setDraft({ ...draft, meta_deskripsi: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Deskripsi untuk mesin pencari (opsional)" />
                 </label>
                 <label className="text-xs font-medium text-gray-500">Tanggal Publikasi
-                  <input type="date" value={draft.tanggal_publikasi} onChange={(e) => setDraft({ ...draft, tanggal_publikasi: e.target.value })} className={cn(cellInput, 'mt-1')} />
-                </label>
-                <label className="text-xs font-medium text-gray-500">Prioritas
-                  <select value={draft.prioritas} onChange={(e) => setDraft({ ...draft, prioritas: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]')}>
-                    {PRIORITAS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <DateField value={draft.tanggal_publikasi} onChange={(v) => setDraft({ ...draft, tanggal_publikasi: v })} className={cellInput + ' mt-1'} />
                 </label>
                 <label className="text-xs font-medium text-gray-500 sm:col-span-2">Link Artikel
                   <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />

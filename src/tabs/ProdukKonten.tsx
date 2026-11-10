@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, ShoppingBag, Trash2, X, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
+import DateField from '../components/DateField';
 
 export type ProductItem = {
   id: string;
@@ -219,7 +220,7 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
                   <input inputMode="numeric" value={draft.harga} onChange={(e) => setDraft({ ...draft, harga: e.target.value.replace(/[^\d]/g, '') })} className={cn(cellInput, 'mt-1')} placeholder="Contoh: 150000" />
                 </label>
                 <label className="text-xs font-medium text-gray-500">Tanggal Publikasi
-                  <input type="date" value={draft.tanggal_publikasi} onChange={(e) => setDraft({ ...draft, tanggal_publikasi: e.target.value })} className={cn(cellInput, 'mt-1')} />
+                  <DateField value={draft.tanggal_publikasi} onChange={(v) => setDraft({ ...draft, tanggal_publikasi: v })} className={cellInput + ' mt-1'} />
                 </label>
               </div>
 

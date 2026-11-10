@@ -2835,12 +2835,22 @@ export default function App() {
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
       {sideOpen && (
       <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-[55] overflow-y-auto">
-        {/* Logo RAZEO — paling atas, sebelum pilih project */}
-        <div className="flex items-center gap-2.5 px-1 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
-            <BarChart3 className="w-5 h-5 text-white" />
+        {/* Logo RAZEO + tombol sembunyikan sidebar — sejajar satu baris */}
+        <div className="flex items-center justify-between gap-2 px-1 mb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20 shrink-0">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
           </div>
-          <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
+          <button
+            onClick={toggleSide}
+            title="Sembunyikan sidebar"
+            aria-label="Sembunyikan sidebar"
+            className="p-1.5 shrink-0 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
         </div>
         {/* Nama project (kiri) & tombol sembunyi (kanan) — sejajar satu baris */}
         <div className="flex items-center gap-1.5 mb-2">
@@ -2861,16 +2871,7 @@ export default function App() {
               <option key={pp.id} value={pp.id}>{pp.name}</option>
             ))}
           </select>
-        )}
-          <button
-            onClick={toggleSide}
-            title="Sembunyikan sidebar"
-            aria-label="Sembunyikan sidebar"
-            className="p-1.5 shrink-0 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
+        )}        </div>
         <button
           onClick={() => setViewState('select')}
           className="w-full flex items-center gap-2 px-2.5 py-2 mb-2 bg-white border border-gray-200 rounded-xl text-xs hover:border-emerald-300 transition-colors"
