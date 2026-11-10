@@ -240,7 +240,7 @@ export default function CekTab({ loading, data, kind, onKind }: Props) {
                 ))}
               </tr>
             </thead>
-            <tbody className="block overflow-y-auto max-h-[calc(100vh-16rem)]">
+            <tbody>
               {loading && rows.length === 0 && (
                 <tr className="grid grid-cols-[2.5rem_2fr_1fr_1fr_1fr_1fr]">
                   <td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Memuat…</td>

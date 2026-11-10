@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const byPage = (sd: string, ed: string) =>
         searchconsole.searchanalytics.query({
           siteUrl: siteUrl as string,
-          requestBody: { startDate: sd, endDate: ed, dimensions: ["page"], rowLimit: 100 },
+          requestBody: { startDate: sd, endDate: ed, dimensions: ["page"], rowLimit: 25000 },
         });
       const fmt = (rows: any[]) =>
         (rows || []).map((r: any) => ({

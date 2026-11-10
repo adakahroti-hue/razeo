@@ -27,6 +27,12 @@ type Props = {
 
 const ROLES = ['inspire', 'educate', 'convert'] as const;
 const PRIORITAS = ['rendah', 'sedang', 'tinggi'] as const;
+// highlight warna Role: inspire=biru, educate=ungu, convert=hijau
+const roleStyle: Record<string, string> = {
+  inspire: 'bg-blue-50 text-blue-700',
+  educate: 'bg-purple-50 text-purple-700',
+  convert: 'bg-emerald-50 text-emerald-700',
+};
 const prioritasStyle: Record<string, string> = {
   rendah: 'bg-gray-100 text-gray-600',
   sedang: 'bg-amber-50 text-amber-700',
@@ -130,13 +136,19 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
               <tr key={it.id} className="hover:bg-gray-50/60 align-top">
                 <td className="px-4 py-2.5"><span className="text-xs text-gray-600 break-words whitespace-normal">{it.kategori || '—'}</span></td>
                 <td className="px-4 py-2.5">
-                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.peran || '—'}</span>
+                  {it.peran ? (
+                    <span className={cn('inline-block px-2 py-0.5 rounded-md text-xs font-bold capitalize', roleStyle[it.peran] || 'bg-gray-100 text-gray-600')}>
+                      {it.peran}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className="text-xs text-gray-600 break-words whitespace-normal">{it.target_keyword || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[260px]">
-                  <span className="text-xs font-semibold text-gray-800 block break-words whitespace-normal" title={it.judul}>{it.judul}</span>
+                  <span className="text-xs text-gray-800 block break-words whitespace-normal" title={it.judul}>{it.judul}</span>
                 </td>
                 <td className="px-4 py-2.5 max-w-[260px]">
                   <span className="text-xs text-gray-500 block break-words whitespace-normal" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
@@ -217,7 +229,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
                   <input value={draft.kategori} onChange={(e) => setDraft({ ...draft, kategori: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="Blog / Landing..." />
                 </label>
                 <label className="text-xs font-medium text-gray-500">Role
-                  <select value={draft.peran} onChange={(e) => setDraft({ ...draft, peran: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]')}>
+                  <select value={draft.peran} onChange={(e) => setDraft({ ...draft, peran: e.target.value })} className={cn(cellInput, 'mt-1 h-[38px]', 'capitalize')}>
                     <option value="">— pilih role —</option>
                     {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                     {draft.peran && !ROLES.includes(draft.peran as any) && (

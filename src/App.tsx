@@ -2649,13 +2649,16 @@ export default function App() {
         <div className={cn("max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between gap-4", sideOpen && 'md:pl-60')}>
           <div className="flex flex-1 items-center gap-6 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
-                <BarChart3 className="w-5 h-5 text-white" />
+              {/* mobile: sidebar tak tampil → logo tetap ada di header; desktop: logo pindah ke sidebar */}
+              <div className="md:hidden flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
               </div>
-              <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
               {!sideOpen && (
                 <button onClick={toggleSide} title="Tampilkan sidebar" aria-label="Tampilkan sidebar"
-                  className="hidden md:inline-flex p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-gray-50 transition-colors">
+                  className="hidden md:inline-flex p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
                   <PanelLeftOpen className="w-4 h-4" />
                 </button>
               )}
@@ -2809,6 +2812,13 @@ export default function App() {
       {/* ===== SIDEBAR NAVIGASI UTAMA (desktop) ===== */}
       {sideOpen && (
       <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-white border-r border-gray-200 p-4 z-[55] overflow-y-auto">
+        {/* Logo RAZEO — paling atas, sebelum pilih project */}
+        <div className="flex items-center gap-2.5 px-1 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="font-extrabold text-lg tracking-tight text-gray-900">RAZEO</h1>
+        </div>
         {/* Nama project (kiri) & tombol sembunyi (kanan) — sejajar satu baris */}
         <div className="flex items-center gap-1.5 mb-2">
         {projects.length > 0 && (
