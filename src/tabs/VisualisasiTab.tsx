@@ -28,6 +28,20 @@ const FALLBACK_FILL = 'bg-[#9aa3af] text-white';
 // gaya kotak TUJUAN (daftar internal link) — indigo, selebihnya; sama pesan warna dg chip Internal Link tab Konten
 const TARGET_FILL = 'bg-white border-2 border-dashed border-indigo-300 text-indigo-700';
 
+// ===== aturan kolom = urutan ROLE FUNNEL (bukan depthing graph):
+//      paling kiri inspire (biru) -> tengah educate (hijau) -> kanan produk/convert (oranye) -> paling ujung tanpa role
+//      (ROLE_RANK sudah terdefinisi dgn urutan sama persis di atas — dipakai utk peringkat + index kolom)
+const NROLE_COL = 3; // indx awal utk tanpa role
+const PRODUK_COL = 2; // kolom kanan: produk/URL luar daftar (dan role convert bila nanti ada)
+const COL_LABEL: { label: string; cls: string }[] = [
+  { label: 'INSPIRE', cls: 'text-[#5b8def]' },
+  { label: 'EDUCATE', cls: 'text-[#69bfae]' },
+  { label: 'PRODUK', cls: 'text-[#f2994a]' },
+  { label: 'LAINNYA', cls: 'text-gray-400' },
+];
+const colOf = (role: string) => (role in ROLE_RANK ? ROLE_RANK[role] : NROLE_COL);
+const colOfNode = (k: GNode) => (k.colOverride !== undefined ? k.colOverride : colOf(k.role));
+
 // ===== geometri kanvas mini (px) =====
 const W = 214;
 const H = 46;
@@ -43,41 +57,31 @@ const colX = (c: number) => PAD_X + c * (W + GX);
 const rowY = (r: number) => PAD_TOP + r * (H + RG);
 const midY = (r: number) => rowY(r) + H / 2;
 
-type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[] };
+type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[]; colOverride?: number };
 type Box = { x: number; y: number };
-type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number };
+type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colRows: number[] };
 
 // ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
 function runLayout(nodes: GNode[]): Graph {
   const n = nodes.length;
-  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60 };
+  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, colRows: [] };
   const idx = new Map(nodes.map((k, i) => [k.id, i]));
   const outgoing = nodes.map((k) => k.outIds.filter((t) => idx.has(t)).map((t) => idx.get(t)!));
-  const incoming = nodes.map(() => [] as number[]);
-  outgoing.forEach((o, s) => o.forEach((t) => incoming[t].push(s)));
-  const indeg = incoming.map((x) => x.length);
 
-  const stage = new Array<number>(n).fill(-1);
-  const done = new Array<boolean>(n).fill(false);
-  for (let i = 0; i < n; i++) if (indeg[i] === 0) { stage[i] = 0; done[i] = true; }
-  let guard = 0, progress = true;
-  while (done.some((d) => !d) && progress && guard < n + 5) {
-    progress = false; guard++;
-    for (let i = 0; i < n; i++) {
-      if (done[i]) continue;
-      const parents = incoming[i];
-      if (!parents.length) { stage[i] = 0; done[i] = true; progress = true; continue; }
-      if (parents.every((u) => done[u])) { stage[i] = 1 + Math.max(...parents.map((u) => stage[u])); done[i] = true; progress = true; }
-    }
-    if (!progress) for (let i = 0; i < n; i++) if (!done[i]) { stage[i] = 0; done[i] = true; } // siklus aman
-  }
-
-  const maxStage = Math.max(0, ...stage);
-  let columns: number[][] = Array.from({ length: maxStage + 1 }, () => [] as number[]);
+  // ===== KOLOM = role funnel (bukan depthing graph) =====
+  const stageUsingRole = nodes.map((k) => colOfNode(k));
+  const stage = stageUsingRole; // alias — tetap dipakai utk routing & pengurutan baris
+  const colsCount = NROLE_COL + 1;
+  let columns: number[][] = Array.from({ length: colsCount }, () => [] as number[]);
   nodes.forEach((_, i) => columns[stage[i]].push(i));
 
-  // barycenter sweep — rapatkan anak dekat induk, minimkan silang
+  // sedikit rapihkan: barycenter dlm kolom — utamakan anak sebardn petunjuk langsung
   const posIn = (c: number, i: number) => columns[c].indexOf(i);
+  const incomingRough = nodes.map(() => [] as number[]);
+  nodes.forEach((k, i) => k.outIds.forEach((t) => {
+    const j = nodes.findIndex((x) => x.id === t);
+    if (j >= 0) incomingRough[j].push(i);
+  }));
   const bary = (i: number, peers: number[]) => {
     const ps = peers.filter((p) => p >= 0);
     return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : posIn(stage[i], i);
@@ -85,57 +89,64 @@ function runLayout(nodes: GNode[]): Graph {
   for (let pass = 0; pass < 4; pass++) {
     const fwd = pass % 2 === 0;
     const order = fwd ? columns.map((_, c) => c) : columns.map((_, c) => c).reverse();
-    for (const col of order) {
-      const scored = columns[col].map((i) => {
+    for (const c of order) {
+      const scored = columns[c].map((i) => {
+        const idxT = (id: string) => nodes.findIndex((x) => x.id === id);
         const peers = fwd
-          ? outgoing[i].filter((t) => stage[t] === col + 1).map((t) => posIn(col + 1, t))
-          : incoming[i].filter((s) => stage[s] === col - 1).map((s) => posIn(col - 1, s));
+          ? nodes[i].outIds.map((t) => (stage[idxT(t)] === c + 1 ? posIn(c + 1, idxT(t)) : -1))
+          : incomingRough[i].map((u) => (stage[u] === c - 1 ? posIn(c - 1, u) : -1));
         return { i, s: bary(i, peers) };
       });
       scored.sort((a, b) => a.s - b.s || a.i - b.i);
-      columns[col] = scored.map((x) => x.i);
+      columns[c] = scored.map((x) => x.i);
     }
   }
+  // buang kolom kosong di ujung kanan (bila tak ada convert / tanpa role)
+  while (columns.length > 1 && columns[columns.length - 1].length === 0) columns.pop();
 
   const pos = new Map<string, Box>();
   columns.forEach((rows, col) => rows.forEach((i, r) => pos.set(nodes[i].id, { x: colX(col), y: rowY(r) })));
   const maxRows = columns.reduce((m, c) => Math.max(m, c.length), 1);
-  const width = colX(columns.length - 1) + W + PAD_X;
+  const width = colX(Math.max(0, columns.length - 1)) + W + PAD_X;
   const height = rowY(maxRows - 1) + H + PAD_BOT;
 
-  const gutter = (col: number) => colX(Math.min(col, columns.length - 1)) - GX / 2 + 8;
+  const gutter = (col: number) => colX(Math.min(col, Math.max(0, columns.length - 1))) - GX / 2 + 8;
   const edges: { d: string }[] = [];
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
       if (!pa || !pb) continue;
-      const ra = stageRows(stage, columns, nodes, nodes[a].id);
-      const rb = stageRows(stage, columns, nodes, nodes[b].id);
+      const ra = rowOf(stage, columns, nodes[a].id);
+      const rb = rowOf(stage, columns, nodes[b].id);
+      if (ra < 0 || rb < 0) continue;
       const ax = pa.x + W, ay = midY(ra), bx = pb.x, by = midY(rb);
       let d: string;
-      if (stage[b] === stage[a] + 1) {
+      if (stage[b] > stage[a]) {
+        // maju ke kanan (funnel normal): curve di lorong
         const gx = (ax + bx) / 2;
         d = `M ${ax} ${ay} C ${gx} ${ay}, ${gx} ${by}, ${bx - 7} ${by}`;
       } else {
+        // setara/kiri (lintas role ke arah berlawanan / sesama kolom): naik lane atas -> masuk kiri
         const lane = LANE_A + ((a + b) % 2) * (LANE_B - LANE_A);
-        const gOut = gutter(stage[a] + 1);
+        const gOut = gutter(Math.max(0, stage[a] + (stage[a] < columns.length - 1 ? 1 : 0)));
         const gIn = gutter(stage[b]);
         d =
           `M ${ax} ${ay} ` +
-          `C ${ax + 24} ${ay}, ${gOut + 20} ${ay}, ${gOut} ${lane} ` +
+          `C ${ax + 24} ${ay}, ${gOut + 18} ${ay}, ${gOut} ${lane} ` +
           `L ${gIn} ${lane} ` +
-          `C ${gIn} ${lane + 26}, ${gIn} ${by}, ${gIn + 26} ${by} ` +
+          `C ${gIn} ${lane + 26}, ${gIn} ${by}, ${gIn + 24} ${by} ` +
           `L ${bx - 7} ${by}`;
       }
       edges.push({ d });
     }
   }
-  return { pos, edges, width, height };
+  return { pos, edges, width, height, colRows: columns.map((c) => c.length) };
 
-  function stageRows(stg: number[], cols: number[][], set: GNode[], id: string): number {
-    const i = set.findIndex((x) => x.id === id);
-    if (i < 0) return 0;
-    return (cols[stg[i]] ?? []).findIndex((x) => set[x]?.id === id);
+  function rowOf(stg: number[], cols: number[][], id: string): number {
+    const i = nodes.findIndex((x) => x.id === id);
+    if (i < 0) return -1;
+    const r = (cols[stg[i]] ?? []).findIndex((x) => nodes[x]?.id === id);
+    return r;
   }
 }
 
@@ -195,7 +206,9 @@ export default function VisualisasiTab({ loading, items }: Props) {
         if (targetId && targetId !== src.id) {
           tid = targetId; // asli — ghost lokal dibuat saat penggabungan grup bila beda kategori
         } else {
-          tid = phantom(lowered, kwText).id; // tujuan tak punya artikel di daftar (city / URL bukan link_artikel)
+          tid = phantom(lowered, kwText).id; // halaman produk / URL luar daftar -> kolom klik PRODUK (colOverride)
+          const p = probePhantom.get('x:' + lowered);
+          if (p) p.colOverride = PRODUK_COL;
         }
         if (!src.outIds.includes(tid)) src.outIds.push(tid);
       }
@@ -221,8 +234,8 @@ export default function VisualisasiTab({ loading, items }: Props) {
           if (inGroup.has(tid) || addSet.has(tid)) continue;
           const real = nodeById.get(tid);
           if (real) {
-            // tujuan artikel lain — ghost utk grup ini (copy ringan)
-            const gp: GNode = { id: tid, kw: real.kw, role: '', member: false, outIds: [] };
+            // tujuan artikel kategori lain — ghost dgn role SAMA dgn artikel aslinya (utk tetap di kolom role-nya)
+            const gp: GNode = { id: tid, kw: real.kw, role: real.role, member: false, outIds: [] };
             add.push(gp); addSet.add(tid);
           } else {
             const ph = probePhantom.get(tid)!;
@@ -349,6 +362,18 @@ export default function VisualisasiTab({ loading, items }: Props) {
                         <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.3} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
+                    {/* label kolom funnel: INSPIRE(-> EDUKATE -> PRODUK) */}
+                    {lay!.colRows.map((cnt, i) =>
+                      cnt > 0 && COL_LABEL[i] ? (
+                        <span
+                          key={i}
+                          className={cn('absolute text-[10px] font-black tracking-wider text-center leading-none', COL_LABEL[i].cls)}
+                          style={{ left: colX(i), width: W, top: 14 }}
+                        >
+                          {COL_LABEL[i].label}
+                        </span>
+                      ) : null
+                    )}
                     {g.all.map((k) => {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;
