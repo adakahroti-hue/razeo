@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Activity, BarChart3, ArrowDown, ArrowUp, MousePointer2, ScanLine, MapPin } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type GscRow = { url: string; clicks?: number; impressions?: number; ctr?: number; position?: number };
@@ -18,15 +18,6 @@ type Props = {
 };
 
 export type Kind = 'impressi' | 'posisi' | 'klik' | 'sesi' | 'scroll';
-
-// daftar jenis data — tombolnya ada di SIDEBAR (App.tsx), jadi ikut diekspor
-export const KINDS: { id: Kind; label: string; icon: any }[] = [
-  { id: 'impressi', label: 'Impresi', icon: MapPin },
-  { id: 'posisi', label: 'Posisi', icon: BarChart3 },
-  { id: 'klik', label: 'Klik', icon: MousePointer2 },
-  { id: 'sesi', label: 'Sesi', icon: Activity },
-  { id: 'scroll', label: 'Scroll', icon: ScanLine },
-];
 
 /** posisi 0 (atau absen) = TIDAK ADA posisi; posisi 1 = tertinggi (tak ada di atasnya) → null */
 const posNum = (v: unknown): number | null => {

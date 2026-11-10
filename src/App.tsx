@@ -51,16 +51,12 @@ import { cn } from './lib/utils';
 import LoginScreen from './screens/LoginScreen';
 import ProjectGate from './screens/ProjectGate';
 import PropertyScreen from './screens/PropertyScreen';
-import OverviewTab from './tabs/OverviewTab';
-import KontenTab, { ContentItem } from './tabs/KontenTab';
-import { type ProductItem } from './tabs/ProdukKonten';
-import BundleKonten, { type BundleItem } from './tabs/BundleKonten';
-import CekTab, { KINDS, Kind } from './tabs/CekTab';
+import type { ContentItem } from './tabs/KontenTab';
+import type { ProductItem } from './tabs/ProdukKonten';
+import type { BundleItem } from './tabs/BundleKonten';
+import { KINDS, Kind } from './lib/kinds';
 import { createClient, User } from '@supabase/supabase-js';
-import TaskTab, { type TaskItem } from './tabs/TaskTab'
-import SettingsPageComponent from './pages/SettingsPage'
-import AksiTab, { AksiAddLogModal } from './pages/AksiTab'
-import DashboardTab from './pages/DashboardTab'
+import type { TaskItem } from './tabs/TaskTab'
 
 // Supabase: login Google + identitas. Token login dibawa ke API server saat request.
 const supabase = createClient(
@@ -146,6 +142,16 @@ const segToTab = (pathname: string): TabId | null => {
   const seg = pathname.split('/')[1];
   return (TAB_IDS as string[]).includes(seg) ? (seg as TabId) : null;
 };
+
+// ===== Lazy per-tab — tiap tab dimuat jadi chunk sendiri sesuai tab yg dibuka =====
+const LazyOverviewTab     = React.lazy(() => import('./tabs/OverviewTab'));
+const LazyCekTab          = React.lazy(() => import('./tabs/CekTab'));
+const LazyDashboardTab    = React.lazy(() => import('./pages/DashboardTab'));
+const LazyKontenTab       = React.lazy(() => import('./tabs/KontenTab'));
+const LazyTaskTab         = React.lazy(() => import('./tabs/TaskTab'));
+const LazyAksiTab         = React.lazy(() => import('./pages/AksiTab'));
+const LazySettingsPage    = React.lazy(() => import('./pages/SettingsPage'));
+const LazyAksiAddLogModal = React.lazy(() => import('./pages/AksiTab').then((m) => ({ default: m.AksiAddLogModal })));
 
 // Layar buka pertama kali / restore sesi: bar persegi panjang yang terisi berulang
 function BootScreen() {
@@ -3094,15 +3100,16 @@ export default function App() {
       )}
 
       <main className="max-w-[1600px] mx-auto p-6">
+        <React.Suspense fallback={<div className="py-16 text-center text-gray-400 text-sm">Memuat tab…</div>}>
         <AnimatePresence mode="wait">
           {currentTab === 'cek' && (
             <div key="cek">
-              <CekTab loading={cekLoading} data={cekData} kind={cekKind} onKind={setCekKind} />
+              <LazyCekTab loading={cekLoading} data={cekData} kind={cekKind} onKind={setCekKind} />
             </div>
           )}
           {currentTab === 'overview' && (
             <div key="overview">
-              <OverviewTab
+              <LazyOverviewTab
                 loading={ovLoading}
                 data={ovData}
                 note={ovNote}
@@ -3118,7 +3125,7 @@ export default function App() {
           )}
           {currentTab === 'konten' && (
             <div key="konten">
-              <KontenTab
+              <LazyKontenTab
                 loading={contentLoading}
                 items={contentItems}
                 onAdd={addContent}
@@ -3141,7 +3148,7 @@ export default function App() {
           )}
           {currentTab === 'task' && (
             <div key="task">
-              <TaskTab
+              <LazyTaskTab
                 loading={taskLoading}
                 items={taskItems}
                 onAdd={addTask}
@@ -3151,7 +3158,7 @@ export default function App() {
             </div>
           )}
           {currentTab === 'pengaturan' && (
-            <SettingsPageComponent
+            <LazySettingsPage
               activeProjectId={activeProjectId}
               enterProject={enterProject}
               evCfg={evCfg}
@@ -3165,7 +3172,7 @@ export default function App() {
             />
           )}
           {['overview', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
-          <DashboardTab
+          <LazyDashboardTab
             AUDIT_TABS={AUDIT_TABS}
             Ga4EventBreakdown={Ga4EventBreakdown}
             auditRows={auditRows}
@@ -3233,7 +3240,7 @@ export default function App() {
             setSelectedScrollPages={setSelectedScrollPages}
           />
         ) : (
-          <AksiTab
+          <LazyAksiTab
             filteredLogs={filteredLogs}
             logFilterMonth={logFilterMonth}
             handleDeleteLog={handleDeleteLog}
@@ -3245,7 +3252,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AksiAddLogModal
+      <LazyAksiAddLogModal
         data={data}
         isAddingLog={isAddingLog}
         selectedAspects={selectedAspects}
@@ -3253,7 +3260,8 @@ export default function App() {
         setSelectedAspects={setSelectedAspects}
         handleAddLog={handleAddLog}
       />
-    </main>
+        </React.Suspense>
+      </main>
 
       <footer className="max-w-[1600px] mx-auto p-8 border-t border-gray-200 mt-12 text-center text-gray-400 text-sm font-medium">
       {showInvite && (
