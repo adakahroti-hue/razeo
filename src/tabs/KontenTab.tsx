@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil, Folder, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink } from 'lucide-react';
+import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil, Folder, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink, FileCode } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ProdukKonten, { type ProductItem } from './ProdukKonten';
 import BundleKonten, { type BundleItem } from './BundleKonten';
@@ -17,6 +17,7 @@ export type ContentItem = {
   link_artikel: string | null;
   internal_link: string | null;
   peran: string | null;
+  isi_artikel: string | null;   // isi HTML (mode HTML WordPress)
   created_at?: string;
 };
 
@@ -60,11 +61,22 @@ const kosong = {
   link_artikel: '',
   internal_link: '',
   peran: '',
+  isi_artikel: '',
 };
 
 type Draft = typeof kosong;
 // mode popup: 'add' = konten baru, 'edit' = ubah konten lama
 type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
+
+// sanitasi ringan isi HTML tempelan: buang tag eksekusi & handler sebelum render
+const sanitizeHtml = (html: string): string =>
+  html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/(href|src)\s*=\s*("|')?\s*javascript:[^"'>\s]*/gi, '$1="#"');
 
 // internal_link: teks satu URL per baris (atau dipisah koma) -> daftar
 const splitLinks = (v: string | null): string[] =>
@@ -74,6 +86,8 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
   const [modal, setModal] = useState<Modal>(null);
   const [draft, setDraft] = useState<Draft>({ ...kosong });
   const [busy, setBusy] = useState(false);
+  // popup preview isi artikel (render HTML)
+  const [preview, setPreview] = useState<ContentItem | null>(null);
   // ===== toolbar: cari, filter, urut, statistik, tutup semua =====
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState(''); // '' = semua role (Artikel saja)
@@ -129,6 +143,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
       link_artikel: it.link_artikel ?? '',
       internal_link: it.internal_link ?? '',
       peran: it.peran ?? '',
+      isi_artikel: it.isi_artikel ?? '',
     });
     setModal({ mode: 'edit', id: it.id });
   };
@@ -146,6 +161,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
       link_artikel: draft.link_artikel.trim() || null,
       internal_link: draft.internal_link.trim() || null,
       peran: draft.peran.trim() || null,
+      isi_artikel: draft.isi_artikel || null,
     };
     const ok = modal.mode === 'add' ? await onAdd(row) : await onUpdate(modal.id, row);
     setBusy(false);
@@ -256,7 +272,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                 <table className="w-full text-left align-top" style={{ minWidth: 940 }}>
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
-                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Aksi'].map((h) => (
+                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Isi Artikel', 'Aksi'].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -318,6 +334,12 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                           })()}
                         </td>
                         <td className="px-4 py-2.5">
+                          <button onClick={() => setPreview(it)} title="Lihat isi artikel (HTML)" aria-label="Lihat isi artikel"
+                                  className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700', !it.isi_artikel && 'opacity-40')}>
+                            <FileCode className="w-4 h-4" />
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => openEdit(it)} className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700')} title="Ubah" aria-label="Ubah">
                               <Pencil className="w-4 h-4" />
@@ -361,6 +383,44 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
         />
       )}
       </React.Fragment>
+
+      {/* ===== POPUP PREVIEW isi artikel (render HTML mode WordPress) ===== */}
+      <AnimatePresence>
+        {preview && (
+          <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={() => setPreview(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6 max-h-[88vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-gray-400">
+                    <FileCode className="w-3.5 h-3.5" /> Isi Artikel (HTML)
+                  </div>
+                  <h3 className="font-bold text-base text-gray-900 mt-1 leading-snug">{preview.judul}</h3>
+                </div>
+                <button onClick={() => setPreview(null)} title="Tutup" aria-label="Tutup" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-5">
+                {preview.isi_artikel ? (
+                  <div
+                    className="prose prose-sm max-w-none prose-a:text-emerald-700 [&_img]:max-w-full [&_img]:h-auto [&_h1]:text-lg [&_h2]:text-base"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview.isi_artikel) }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-400">Belum ada isi artikel untuk konten ini. Klik ✏️ Ubah lalu tempel HTML-nya.</p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ===== POPUP FORM: tambah / edit ===== */}
       <AnimatePresence>
@@ -413,6 +473,15 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                 </label>
                 <label className="text-xs font-medium text-gray-500 sm:col-span-2">Internal Link
                   <textarea value={draft.internal_link} onChange={(e) => setDraft({ ...draft, internal_link: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Satu URL per baris — artikel lain yang di-link dari konten ini" />
+                </label>
+                <label className="text-xs font-medium text-gray-500 sm:col-span-2">Isi Artikel (mode HTML WordPress)
+                  <textarea
+                    value={draft.isi_artikel}
+                    onChange={(e) => setDraft({ ...draft, isi_artikel: e.target.value })}
+                    className={cn(cellInput, 'mt-1 h-40 resize-y leading-relaxed font-mono text-[13px]')}
+                    placeholder="Tempel isi artikel dalam mode HTML WordPress (contoh: <p>Paragraf...</p>)"
+                    spellCheck={false}
+                  />
                 </label>
                 
               </div>
