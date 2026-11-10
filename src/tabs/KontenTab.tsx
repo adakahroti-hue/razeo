@@ -74,6 +74,9 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({}); // default: terbuka
 
   const keyOf = (d?: string | null) => d || '';
+  // urutan role default: inspire -> educate -> convert -> (kosong)
+  const ROLE_ORDER: Record<string, number> = { inspire: 0, educate: 1, convert: 2 };
+  const roleRank = (p?: string | null) => (p && p.toLowerCase() in ROLE_ORDER ? ROLE_ORDER[p.toLowerCase()] : 3);
   const matches = (hay: string) => !q || hay.toLowerCase().includes(q.toLowerCase());
 
   // tampilan terurut (sub Produk)
@@ -90,8 +93,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
     .filter((it) => (!roleFilter || (it.peran || '') === roleFilter))
     .filter((it) => matches(`${it.judul} ${it.target_keyword || ''} ${it.kategori || ''} ${it.meta_deskripsi || ''}`))
     .sort((a, b) => {
+      const ra = roleRank(a.peran), rb = roleRank(b.peran);
+      if (ra !== rb) return ra - rb; // urutan utama: role
       const ka = keyOf(a.tanggal_publikasi || a.created_at), kb = keyOf(b.tanggal_publikasi || b.created_at);
-      return sort === 'terbaru' ? kb.localeCompare(ka) : ka.localeCompare(kb);
+      return sort === 'terbaru' ? kb.localeCompare(ka) : ka.localeCompare(kb); // pemecah: tanggal
     });
   const groups: { name: string; rows: ContentItem[] }[] = [];
   for (const it of artVis) {
