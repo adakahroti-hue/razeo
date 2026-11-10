@@ -254,6 +254,98 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ deleted: true });
       }
 
+      // --- tab KONTEN > sub-tab Produk: daftar produk project ---
+      if (action === "product-list") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("project_id", info.projectId)
+          .order("created_at", { ascending: false });
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel products belum ada — jalankan migrasi SQL 0010 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ items: data || [] });
+      }
+
+      // --- tab KONTEN > sub-tab Produk: tambah ---
+      if (action === "product-add") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const hargaRaw = body.harga;
+        const row = {
+          project_id: info.projectId,
+          uid: user.uid,
+          kategori: body.kategori ? String(body.kategori).trim().slice(0, 120) : null,
+          nama_produk: String(body.nama_produk || "").trim().slice(0, 300),
+          judul_produk: body.judul_produk ? String(body.judul_produk).trim().slice(0, 500) : null,
+          link_artikel: body.link_artikel ? String(body.link_artikel).trim().slice(0, 2048) : null,
+          link_shopee: body.link_shopee ? String(body.link_shopee).trim().slice(0, 2048) : null,
+          harga: hargaRaw === null || hargaRaw === undefined || String(hargaRaw).trim() === "" ? null : Number(hargaRaw),
+          tanggal_publikasi: body.tanggal_publikasi ? String(body.tanggal_publikasi).slice(0, 10) : null,
+        };
+        if (!row.nama_produk) return res.status(400).json({ error: "Nama produk wajib diisi" });
+        if (row.harga != null && !Number.isFinite(row.harga)) return res.status(400).json({ error: "Harga harus angka" });
+        const { data, error } = await supabase.from("products").insert(row).select().single();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel products belum ada — jalankan migrasi SQL 0010 di Supabase" });
+          throw error;
+        }
+        return res.status(201).json({ item: data });
+      }
+
+      // --- tab KONTEN > sub-tab Produk: ubah ---
+      if (action === "product-update") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const patchRow: any = { updated_at: new Date().toISOString() };
+        if (body.kategori !== undefined) patchRow.kategori = body.kategori ? String(body.kategori).trim() : null;
+        if (body.nama_produk !== undefined) patchRow.nama_produk = String(body.nama_produk || "").trim().slice(0, 300);
+        if (body.judul_produk !== undefined) patchRow.judul_produk = body.judul_produk ? String(body.judul_produk).trim() : null;
+        if (body.link_artikel !== undefined) patchRow.link_artikel = body.link_artikel ? String(body.link_artikel).trim() : null;
+        if (body.link_shopee !== undefined) patchRow.link_shopee = body.link_shopee ? String(body.link_shopee).trim() : null;
+        if (body.harga !== undefined) {
+          if (body.harga === null || String(body.harga).trim() === "") patchRow.harga = null;
+          else {
+            patchRow.harga = Number(body.harga);
+            if (!Number.isFinite(patchRow.harga)) return res.status(400).json({ error: "Harga harus angka" });
+          }
+        }
+        if (body.tanggal_publikasi !== undefined) patchRow.tanggal_publikasi = body.tanggal_publikasi || null;
+        if (patchRow.nama_produk === "") return res.status(400).json({ error: "Nama produk tidak boleh kosong" });
+        const { data, error } = await supabase
+          .from("products")
+          .update(patchRow)
+          .eq("id", id)
+          .eq("project_id", info.projectId) // batasi ke project ini saja
+          .select()
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ item: data });
+      }
+
+      // --- tab KONTEN > sub-tab Produk: hapus ---
+      if (action === "product-delete") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const { error, count } = await supabase
+          .from("products")
+          .delete({ count: "exact" })
+          .eq("id", id)
+          .eq("project_id", info.projectId);
+        if (error) throw error;
+        if (!count) return res.status(404).json({ error: "Baris tidak ditemukan" });
+        return res.status(200).json({ deleted: true });
+      }
+
       // --- nama event scroll & CTA project (baca) ---
       if (action === "events-get") {
         const info = await requireProject(user.uid, req);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
+import ProdukKonten, { type ProductItem } from './ProdukKonten';
 
 export type ContentItem = {
   id: string;
@@ -23,6 +24,12 @@ type Props = {
   onAdd: (row: Omit<ContentItem, 'id' | 'created_at'>) => Promise<boolean>;
   onUpdate: (id: string, patch: Partial<ContentItem>) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
+  // sub-tab Produk (tabel terpisah: products)
+  prodLoading: boolean;
+  prodItems: ProductItem[];
+  onProdAdd: (row: any) => Promise<boolean>;
+  onProdUpdate: (id: string, patch: any) => Promise<boolean>;
+  onProdDelete: (id: string) => Promise<boolean>;
 };
 
 const ROLES = ['inspire', 'educate', 'convert'] as const;
@@ -33,10 +40,11 @@ const roleStyle: Record<string, string> = {
   educate: 'bg-purple-50 text-purple-700',
   convert: 'bg-emerald-50 text-emerald-700',
 };
+// teks senada latar pucat — shade lebih terang supaya tak gonjreng
 const prioritasStyle: Record<string, string> = {
-  rendah: 'bg-gray-100 text-gray-600',
-  sedang: 'bg-amber-50 text-amber-700',
-  tinggi: 'bg-red-50 text-red-600',
+  rendah: 'bg-gray-100 text-gray-500',
+  sedang: 'bg-amber-50 text-amber-600',
+  tinggi: 'bg-red-50 text-red-400',
 };
 
 const kosong = {
@@ -59,7 +67,9 @@ type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 const splitLinks = (v: string | null): string[] =>
   (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
 
-export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }: Props) {
+export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, prodLoading, prodItems, onProdAdd, onProdUpdate, onProdDelete }: Props) {
+  // sub-bab: Artikel (daftar lama) | Produk (tabel baru)
+  const [sub, setSub] = useState<'artikel' | 'produk'>('artikel');
   const [modal, setModal] = useState<Modal>(null);
   const [draft, setDraft] = useState<Draft>({ ...kosong });
   const [busy, setBusy] = useState(false);
@@ -105,17 +115,36 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* Tombol Tambah Konten — ikon mengambang kanan bawah */}
+      {/* Tombol Tambah Konten — ikon mengambang kanan bawah (sub Artikel); tombol Produk milik ProdukKonten */}
+      {sub === 'artikel' && (
       <button
         onClick={openAdd}
-        title="Tambah Konten"
-        aria-label="Tambah Konten"
+        title={sub === 'artikel' ? 'Tambah Konten' : 'Tambah Produk'}
+        aria-label={sub === 'artikel' ? 'Tambah Konten' : 'Tambah Produk'}
         className="fixed bottom-10 right-10 z-30 w-14 h-14 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 active:scale-95 transition-all"
       >
         <Plus className="w-7 h-7" />
       </button>
+      )}
 
-      {/* tabel data */}
+      {/* sub-bab: Artikel | Produk */}
+      <div className="inline-flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+        {(['artikel', 'produk'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setSub(t)}
+            className={cn(
+              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all capitalize',
+              sub === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* tabel data — sub Artikel */}
+      {sub === 'artikel' && (
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
         <table className="w-full text-left align-top" style={{ minWidth: 980 }}>
           <thead>
@@ -202,6 +231,18 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete }:
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* tabel data — sub Produk */}
+      {sub === 'produk' && (
+        <ProdukKonten
+          loading={prodLoading}
+          items={prodItems}
+          onAdd={onProdAdd}
+          onUpdate={onProdUpdate}
+          onDelete={onProdDelete}
+        />
+      )}
 
       {/* ===== POPUP FORM: tambah / edit ===== */}
       <AnimatePresence>

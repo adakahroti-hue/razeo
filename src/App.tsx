@@ -53,6 +53,7 @@ import ProjectGate from './screens/ProjectGate';
 import PropertyScreen from './screens/PropertyScreen';
 import OverviewTab from './tabs/OverviewTab';
 import KontenTab, { ContentItem } from './tabs/KontenTab';
+import { type ProductItem } from './tabs/ProdukKonten';
 import CekTab, { KINDS, Kind } from './tabs/CekTab';
 import { createClient, User } from '@supabase/supabase-js';
 import TaskTab, { type TaskItem } from './tabs/TaskTab'
@@ -242,6 +243,8 @@ export default function App() {
   const [taskItems, setTaskItems] = useState<TaskItem[]>([]);
   const [taskLoading, setTaskLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
+  const [productItems, setProductItems] = useState<ProductItem[]>([]);
+  const [productLoading, setProductLoading] = useState(false);
   // Overview (ringkasan performa)
   const [ovData, setOvData] = useState<any>(null);
   const [ovLoading, setOvLoading] = useState(false);
@@ -1556,6 +1559,25 @@ export default function App() {
     try { await postContent({ action: 'content-delete', id }); await loadContent(); return true; } catch { return false; }
   };
 
+  // ===== tab KONTEN > sub-tab Produk: daftar/tambah/ubah/hapus (tabel products) =====
+  const loadProducts = async () => {
+    setProductLoading(true);
+    try {
+      const d = await postContent({ action: 'product-list' });
+      setProductItems(d.items || []);
+    } catch { /* pesan sudah lewat postContent */ }
+    finally { setProductLoading(false); }
+  };
+  const addProduct = async (row: any) => {
+    try { await postContent({ action: 'product-add', ...row }, 201); await loadProducts(); return true; } catch { return false; }
+  };
+  const updateProduct = async (id: string, patch: any) => {
+    try { await postContent({ action: 'product-update', id, ...patch }); await loadProducts(); return true; } catch { return false; }
+  };
+  const deleteProduct = async (id: string) => {
+    try { await postContent({ action: 'product-delete', id }); await loadProducts(); return true; } catch { return false; }
+  };
+
   // ===== tab TASK: rencana tugas (nama, prioritas, status) =====
   const loadTasks = async () => {
     setTaskLoading(true);
@@ -1586,6 +1608,7 @@ export default function App() {
       }
     }
     if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
+      loadProducts(); // sub-tab Produk ikut dimuat bersama konten
     if (viewState === 'dashboard' && currentTab === 'task') loadTasks();
     if (viewState === 'dashboard' && currentTab === 'cek') loadCek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2994,6 +3017,11 @@ export default function App() {
                 onAdd={addContent}
                 onUpdate={updateContent}
                 onDelete={deleteContent}
+                prodLoading={productLoading}
+                prodItems={productItems}
+                onProdAdd={addProduct}
+                onProdUpdate={updateProduct}
+                onProdDelete={deleteProduct}
               />
             </div>
           )}
