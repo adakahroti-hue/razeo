@@ -135,6 +135,18 @@ const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> =
   '/': 'login', '/project': 'project', '/properti': 'select', '/dashboard': 'dashboard',
 };
 
+// ===== slug URL per tab (sesuai nama tab, huruf kecil tanpa spasi) =====
+type TabId = 'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker' | 'pengaturan';
+const TAB_PATHS: Record<TabId, string> = {
+  overview: '/overview', cek: '/cek', dashboard: '/optimasi', konten: '/konten',
+  task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
+};
+const TAB_IDS = Object.keys(TAB_PATHS) as TabId[];
+const segToTab = (pathname: string): TabId | null => {
+  const seg = pathname.split('/')[1];
+  return (TAB_IDS as string[]).includes(seg) ? (seg as TabId) : null;
+};
+
 // Layar buka pertama kali / restore sesi: bar persegi panjang yang terisi berulang
 function BootScreen() {
   return (
@@ -235,7 +247,11 @@ export default function App() {
   const [expandedEnrichmentPage, setExpandedEnrichmentPage] = useState<string | null>(null);
   const [expandedZeroPage, setExpandedZeroPage] = useState<string | null>(null);
   const [expandedLhfPage, setExpandedLhfPage] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker' | 'pengaturan'>('overview');
+  const [currentTab, setCurrentTabState] = useState<TabId>('overview');
+  const currentTabRef = useRef<TabId>(currentTab);
+  currentTabRef.current = currentTab;
+  // ganti tab dari sidebar/strip — state saja; URL ditulis efek sinkron di bawah
+  const setCurrentTab = (t: TabId) => setCurrentTabState(t);
   // Tab Cek (perbandingan dua periode per halaman)
   const [cekData, setCekData] = useState<any>(null);
   const [cekLoading, setCekLoading] = useState(false);
@@ -1647,11 +1663,21 @@ export default function App() {
     if (viewState === 'login') {
       return; // selama status login belum diputuskan, URL TIDAK disentuh sama sekali
     }
-    const path = VIEW_PATHS[viewState] ?? '/';
-    if (window.location.pathname === path) { bootedRef.current = true; return; }
+    let path = VIEW_PATHS[viewState] ?? '/';
+    let targetTab: TabId | null = null;
+    if (viewState === 'dashboard') {
+      // direct-open / refresh di URL tab (mis. /konten, /task) → hormati & pulihkan tabnya (R1: satu arbiter)
+      const t = segToTab(window.location.pathname);
+      if (t) { targetTab = t; path = TAB_PATHS[t]; }
+    }
+    if (window.location.pathname === path) {
+      if (targetTab && currentTabRef.current !== targetTab) setCurrentTabState(targetTab);
+      bootedRef.current = true; return;
+    }
     if (!bootedRef.current) {
       // ganti URL sekali saat aplikasi menyala — riwayat tak menumpuk dengan pengganti
       window.history.replaceState(null, '', path);
+      if (targetTab && currentTabRef.current !== targetTab) setCurrentTabState(targetTab);
       bootedRef.current = true;
     } else {
       window.history.pushState(null, '', path);
@@ -1661,7 +1687,13 @@ export default function App() {
   // tombol Back/Forward peramban → layar disesuaikan ke URL tujuan
   useEffect(() => {
     const onPop = () => {
-      const target = PATH_VIEWS[window.location.pathname] ?? 'login';
+      const p = window.location.pathname;
+      let target: 'login' | 'project' | 'select' | 'dashboard' = PATH_VIEWS[p] ?? 'login';
+      const t = segToTab(p);
+      if (t) {
+        target = 'dashboard'; // slug tab → layar dashboard, tabnya dipulihkan di bawah
+        if (currentTabRef.current !== t) setCurrentTabState(t);
+      }
       viewStateRef.current = target;
       setViewState(target);
       // landing ('login') saat ada user akan disalurkan efek pengaman ke gerbang
@@ -1669,6 +1701,15 @@ export default function App() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // Klik tab di sidebar/strip → tulis slug tab ke URL (Back/Forward peramban jalan)
+  useEffect(() => {
+    if (viewState !== 'dashboard') return;
+    const path = TAB_PATHS[currentTab];
+    if (!path || window.location.pathname === path) return;
+    if (!bootedRef.current) return; // saat boot, efek sinkron viewState di atas yang menulis
+    window.history.pushState(null, '', path);
+  }, [currentTab, viewState]);
 
   // (Perpindahan pengaman dihapus — jumpa di render: selama user ada dan layar
   // masih 'login', yang tampil loader, BUKAN landing dan BUKAN perpindahan view.
