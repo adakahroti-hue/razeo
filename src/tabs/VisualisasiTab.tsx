@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ContentItem } from './KontenTab';
 import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
@@ -10,23 +10,31 @@ type Props = {
   items: ContentItem[];
 };
 
+// urut + tata persis seperti tab Konten: role inspire>educate>convert, pemecah tanggal terbaru
+const ROLE_RANK: Record<string, number> = { inspire: 0, educate: 1, convert: 2 };
+const rank = (p?: string | null) => (p && p.toLowerCase() in ROLE_RANK ? ROLE_RANK[p.toLowerCase()] : 3);
+const dateKey = (it: { tanggal_publikasi?: string | null; created_at?: string }) => it.tanggal_publikasi || it.created_at || '';
+
 const splitLinks = (v: string | null): string[] =>
   (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
 
+// warna kotak node sumber per role (mirip referensi diagram)
 const ROLE_FILL: Record<string, string> = {
   inspire: 'bg-[#5b8def] text-white',
   educate: 'bg-[#69bfae] text-white',
   convert: 'bg-[#f2994a] text-white',
 };
 const FALLBACK_FILL = 'bg-[#9aa3af] text-white';
+// gaya kotak TUJUAN (daftar internal link) — indigo, selebihnya; sama pesan warna dg chip Internal Link tab Konten
+const TARGET_FILL = 'bg-white border-2 border-dashed border-indigo-300 text-indigo-700';
 
 // ===== geometri kanvas mini (px) =====
 const W = 214;
 const H = 46;
 const RG = 22;
-const GX = 94;      // ruang lorong antar kolom
+const GX = 94;
 const PAD_X = 22;
-const PAD_TOP = 46; // ruang lane atas utk panah mundur
+const PAD_TOP = 46;
 const PAD_BOT = 16;
 const LANE_A = 16;
 const LANE_B = 30;
@@ -35,21 +43,20 @@ const colX = (c: number) => PAD_X + c * (W + GX);
 const rowY = (r: number) => PAD_TOP + r * (H + RG);
 const midY = (r: number) => rowY(r) + H / 2;
 
-type GNode = { id: string; kw: string; role: string; extra: string[]; outIds: string[] };
+type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[] };
 type Box = { x: number; y: number };
+type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number };
 
-// ===== layout utk SEBUAH subgraph =====
-function runLayout(nodes: GNode[]): { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; cols: number } {
+// ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
+function runLayout(nodes: GNode[]): Graph {
   const n = nodes.length;
-  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, cols: 0 };
+  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60 };
   const idx = new Map(nodes.map((k, i) => [k.id, i]));
-  const outgoing = nodes.map((k) => k.outIds.filter((t) => idx.has(t)).map((t) => idx.get(t)!) );
+  const outgoing = nodes.map((k) => k.outIds.filter((t) => idx.has(t)).map((t) => idx.get(t)!));
   const incoming = nodes.map(() => [] as number[]);
   outgoing.forEach((o, s) => o.forEach((t) => incoming[t].push(s)));
   const indeg = incoming.map((x) => x.length);
 
-  // LAYERING (lurus kiri -> kanan): col(v) = 0 jika tanpa penghubung masuk,
-  // selain itu 1 + max(col u) utk tiap u -> v. TUNGGU semua incoming dulu.
   const stage = new Array<number>(n).fill(-1);
   const done = new Array<boolean>(n).fill(false);
   for (let i = 0; i < n; i++) if (indeg[i] === 0) { stage[i] = 0; done[i] = true; }
@@ -58,12 +65,11 @@ function runLayout(nodes: GNode[]): { pos: Map<string, Box>; edges: { d: string 
     progress = false; guard++;
     for (let i = 0; i < n; i++) {
       if (done[i]) continue;
-      const parents = incoming[i]; // u -> i
-      if (parents.length === 0) { stage[i] = 0; done[i] = true; progress = true; continue; }
+      const parents = incoming[i];
+      if (!parents.length) { stage[i] = 0; done[i] = true; progress = true; continue; }
       if (parents.every((u) => done[u])) { stage[i] = 1 + Math.max(...parents.map((u) => stage[u])); done[i] = true; progress = true; }
     }
-    // sisa (siklus / jaringan tak berujung): paksa col 0 — arah panahnya nanti diatur routing lane
-    if (!progress) for (let i = 0; i < n; i++) if (!done[i]) { stage[i] = 0; done[i] = true; }
+    if (!progress) for (let i = 0; i < n; i++) if (!done[i]) { stage[i] = 0; done[i] = true; } // siklus aman
   }
 
   const maxStage = Math.max(0, ...stage);
@@ -74,8 +80,7 @@ function runLayout(nodes: GNode[]): { pos: Map<string, Box>; edges: { d: string 
   const posIn = (c: number, i: number) => columns[c].indexOf(i);
   const bary = (i: number, peers: number[]) => {
     const ps = peers.filter((p) => p >= 0);
-    if (!ps.length) return posIn(stage[i], i);
-    return ps.reduce((a, b) => a + b, 0) / ps.length;
+    return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : posIn(stage[i], i);
   };
   for (let pass = 0; pass < 4; pass++) {
     const fwd = pass % 2 === 0;
@@ -92,33 +97,29 @@ function runLayout(nodes: GNode[]): { pos: Map<string, Box>; edges: { d: string 
     }
   }
 
-  // posisi + ukuran
   const pos = new Map<string, Box>();
   columns.forEach((rows, col) => rows.forEach((i, r) => pos.set(nodes[i].id, { x: colX(col), y: rowY(r) })));
   const maxRows = columns.reduce((m, c) => Math.max(m, c.length), 1);
-  const cols = columns.length;
-  const width = colX(cols - 1) + W + PAD_X;
+  const width = colX(columns.length - 1) + W + PAD_X;
   const height = rowY(maxRows - 1) + H + PAD_BOT;
 
-  // ===== edge routing =====
-  const gutter = (col: number) => colX(col) - GX / 2 + 8;
+  const gutter = (col: number) => colX(Math.min(col, columns.length - 1)) - GX / 2 + 8;
   const edges: { d: string }[] = [];
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
       if (!pa || !pb) continue;
-      const ax = pa.x + W, ay = midY(stageRows(columns, nodes[a].id, stage)),
-            bx = pb.x,     by = midY(stageRows(columns, nodes[b].id, stage));
+      const ra = stageRows(stage, columns, nodes, nodes[a].id);
+      const rb = stageRows(stage, columns, nodes, nodes[b].id);
+      const ax = pa.x + W, ay = midY(ra), bx = pb.x, by = midY(rb);
       let d: string;
-      const ca = stage[a], cb = stage[b];
-      if (cb === ca + 1) {
+      if (stage[b] === stage[a] + 1) {
         const gx = (ax + bx) / 2;
         d = `M ${ax} ${ay} C ${gx} ${ay}, ${gx} ${by}, ${bx - 7} ${by}`;
       } else {
-        // jauh / mundur: jalur lokal lewat sisi kanan kolom sumber + lane atas + turun di lorong target
         const lane = LANE_A + ((a + b) % 2) * (LANE_B - LANE_A);
-        const gOut = gutter(ca + 1 < cols ? ca + 1 : ca);
-        const gIn  = gutter(cb);
+        const gOut = gutter(stage[a] + 1);
+        const gIn = gutter(stage[b]);
         d =
           `M ${ax} ${ay} ` +
           `C ${ax + 24} ${ay}, ${gOut + 20} ${ay}, ${gOut} ${lane} ` +
@@ -129,89 +130,145 @@ function runLayout(nodes: GNode[]): { pos: Map<string, Box>; edges: { d: string 
       edges.push({ d });
     }
   }
-  return { pos, edges, width, height, cols };
+  return { pos, edges, width, height };
 
-  function stageRows(colsArr: number[][], id: string, stages: number[]): number {
-    const st = stages.find((_v, i) => nodes[i].id === id);
-    if (st === undefined) return 0;
-    const rows = colsArr[st] ?? [];
-    const r = rows.findIndex((i) => nodes[i].id === id);
-    return r < 0 ? 0 : r;
+  function stageRows(stg: number[], cols: number[][], set: GNode[], id: string): number {
+    const i = set.findIndex((x) => x.id === id);
+    if (i < 0) return 0;
+    return (cols[stg[i]] ?? []).findIndex((x) => set[x]?.id === id);
   }
 }
 
-type Group = { name: string; nodes: GNode[] };
+type Group = { name: string; all: GNode[] };
 
 export default function VisualisasiTab({ loading, items }: Props) {
   const [q, setQ] = useState('');
   const kwMap = useMemo(() => keywordMap(items), [items]);
 
-  // ===== node global (edge tetap by keyword -> id) =====
-  const nodesAll: GNode[] = useMemo(() => {
-    const list = items.map((it) => ({
-      id: it.id,
-      kw: (it.target_keyword || it.judul || '(tanpa keyword)').trim(),
-      role: (it.peran || '').toLowerCase(),
-      extra: [],
-      outIds: [] as string[],
-    }));
-    const lookup = new Map<string, string>();
-    for (const it of items) {
-      const kw = (it.target_keyword || it.judul || '').trim();
-      if (kw && !lookup.has(kw.toLowerCase())) lookup.set(kw.toLowerCase(), it.id);
+  // ===== data & urutan SAMA dgn tab Konten: role -> tanggal, kelompok kategori =====
+  const groups: Group[] = useMemo(() => {
+    if (!items.length) return [];
+    // urut global persis pola artVis tab Konten
+    const sorted = [...items].sort((a, b) => {
+      const ra = rank(a.peran), rb = rank(b.peran);
+      if (ra !== rb) return ra - rb;
+      const ka = dateKey(a), kb = dateKey(b);
+      return kb.localeCompare(ka); // terbaru dulu
+    });
+    const lowerToId = new Map<string, string>();
+    for (const it of sorted) {
+      const kw = (it.target_keyword || it.judul || '').trim().toLowerCase();
+      if (kw && !lowerToId.has(kw)) lowerToId.set(kw, it.id);
     }
-    const byId = new Map(list.map((x) => [x.id, x]));
-    for (const it of items) {
-      const src = byId.get(it.id);
-      if (!src) continue;
-      for (const u of splitLinks(it.internal_link)) {
-        const t = lookup.get(urlToKeyword(u, kwMap).trim().toLowerCase());
-        if (t && t !== src.id && !src.outIds.includes(t)) src.outIds.push(t);
+
+    // node sumber + edge dg seluruh isi kolom Internal Link (resolve URL -> kata kunci, sama dgn tab Konten)
+    const nodeById = new Map<string, GNode>();
+    for (const it of sorted) {
+      nodeById.set(it.id, {
+        id: it.id,
+        kw: (it.target_keyword || it.judul || '(tanpa keyword)').trim(),
+        role: (it.peran || '').toLowerCase(),
+        member: true,
+        outIds: [],
+      });
+    }
+    const probePhantom = new Map<string, GNode>();
+    const phantom = (lowerKw: string, kwText: string): GNode => {
+      const pid = 'x:' + lowerKw;
+      let p = probePhantom.get(pid);
+      if (!p) {
+        p = { id: pid, kw: kwText, role: '', member: false, outIds: [] };
+        probePhantom.set(pid, p);
+      }
+      return p;
+    };
+
+    // per artikel: setiap baris internal_link -> kata kunci tujuan (urlToKeyword, fallback slug — persis tab Konten)
+    for (const it of sorted) {
+      const src = nodeById.get(it.id)!;
+      const all = splitLinks(it.internal_link);
+      for (const u of all) {
+        const kwText = urlToKeyword(u, kwMap); // kwMap = URL link_artikel -> target_keyword (sumber sama dgn tab Konten)
+        const lowered = kwText.toLowerCase();
+        const targetId = lowerToId.get(lowered); // keyword resolusi -> id artikel (data sama dgn tab Konten)
+        let tid: string;
+        if (targetId && targetId !== src.id) {
+          tid = targetId; // asli — ghost lokal dibuat saat penggabungan grup bila beda kategori
+        } else {
+          tid = phantom(lowered, kwText).id; // tujuan tak punya artikel di daftar (city / URL bukan link_artikel)
+        }
+        if (!src.outIds.includes(tid)) src.outIds.push(tid);
       }
     }
-    return list;
-  }, [items, kwMap]);
 
-  // ===== kelompok per kategori dari data asli (urutan kategori inventaris) =====
-  const groups: Group[] = useMemo(() => {
-    const byId = new Map(nodesAll.map((x) => [x.id, x]));
-    const out: Group[] = [];
+    // kelompok per kategori (kunci dgn definisi SAMA dgn tab Konten)
+    const order: Group[] = [];
     const gIdx = new Map<string, Group>();
-    for (const it of items) {
+    for (const it of sorted) {
       const nm = (it.kategori || '').trim() || 'Tanpa Kategori';
       let g = gIdx.get(nm);
-      if (!g) { g = { name: nm, nodes: [] }; gIdx.set(nm, g); out.push(g); }
-      const nd = byId.get(it.id);
-      if (nd) g.nodes.push(nd);
+      if (!g) { g = { name: nm, all: [] }; gIdx.set(nm, g); order.push(g); }
+      g.all.push(nodeById.get(it.id)!);
     }
-    // potong edge tak terpakai? tidak perlu — runLayout memfilter idx
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [items, nodesAll]);
+
+    // tujuan pd tiap grup: include node khusus ghost/luar-kategori sebagai daun dg ID sama (unique per grup)
+    for (const g of order) {
+      const inGroup = new Set(g.all.map((x) => x.id));
+      const add: GNode[] = [];
+      const addSet = new Set<string>();
+      for (const src of g.all) {
+        for (const tid of src.outIds) {
+          if (inGroup.has(tid) || addSet.has(tid)) continue;
+          const real = nodeById.get(tid);
+          if (real) {
+            // tujuan artikel lain — ghost utk grup ini (copy ringan)
+            const gp: GNode = { id: tid, kw: real.kw, role: '', member: false, outIds: [] };
+            add.push(gp); addSet.add(tid);
+          } else {
+            const ph = probePhantom.get(tid)!;
+            const gp: GNode = { id: ph.id, kw: ph.kw, role: '', member: false, outIds: [] };
+            add.push(gp); addSet.add(tid);
+          }
+        }
+      }
+      g.all = [...g.all, ...add];
+    }
+    return order;
+  }, [items, kwMap]);
+
+  // ===== rangkuman (angka sinkron dgn tab Konten: total artikel & total chip internal link) =====
+  const totalArticle = items.length;
+  const totalChips = useMemo(() => items.reduce((s, it) => s + splitLinks(it.internal_link).length, 0), [items]);
+  const withLink = useMemo(() => items.filter((it) => splitLinks(it.internal_link).length > 0).length, [items]);
 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
-  const shownGroups = groups.filter((g) => !q || q.length < 2 || g.name.toLowerCase().includes(q.toLowerCase()) || g.nodes.some((n) => n.kw.toLowerCase().includes(q.toLowerCase())));
-  const allOpen = shownGroups.length > 0 && shownGroups.every((g) => openMap[g.name] !== false);
+  const shown = useMemo(
+    () =>
+      groups.filter(
+        (g) =>
+          !q ||
+          g.name.toLowerCase().includes(q.toLowerCase()) ||
+          g.all.some((n) => n.kw.toLowerCase().includes(q.toLowerCase()))
+      ),
+    [groups, q]
+  );
+  const allOpen = shown.length > 0 && shown.every((g) => openMap[g.name] !== false);
   const toggleAll = () => {
     const next: Record<string, boolean> = {};
-    shownGroups.forEach((g) => { next[g.name] = !allOpen; });
+    shown.forEach((g) => { next[g.name] = !allOpen; });
     setOpenMap({ ...openMap, ...next });
   };
 
-  // ===== layout per grup — dihitung per grup tampil, tanpa state (pure) =====
-  const layoutCache = useMemo(() => {
-    const m: Record<string, ReturnType<typeof runLayout>> = {};
-    for (const g of shownGroups) m[g.name] = runLayout(g.nodes);
+  const layouts = useMemo(() => {
+    const m: Record<string, Graph> = {};
+    for (const g of shown) m[g.name] = runLayout(g.all);
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownGroups, q]);
-
-  const totalNode = shownGroups.reduce((s, g) => s + g.nodes.length, 0);
-  const linked = nodesAll.filter((n) => n.outIds.length > 0).length;
-  const totalEdge = nodesAll.reduce((s, n) => s + n.outIds.length, 0);
+  }, [shown, openMap]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-      {/* toolbar */}
+      {/* toolbar — angka identik dgn basis tab Konten (artikel & chip internal link) */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -222,12 +279,12 @@ export default function VisualisasiTab({ loading, items }: Props) {
             className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500"
           />
         </div>
-        <div className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-500 whitespace-nowrap">
-          Total: <b className="text-emerald-600">{totalNode} Node</b>
+        <div className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-500 whitespace-nowrap" title="Angka mengikuti tab Konten (sub Artikel)">
+          Total: <b className="text-emerald-600">{totalArticle} Artikel</b>
           <span className="mx-1.5 text-gray-300">&bull;</span>
-          Punya cabang: <b className="text-emerald-600">{linked}</b>
+          Punya internal link: <b className="text-emerald-600">{withLink}</b>
           <span className="mx-1.5 text-gray-300">&bull;</span>
-          Panah: <b className="text-emerald-600">{totalEdge}</b>
+          Tautan: <b className="text-emerald-600">{totalChips}</b>
         </div>
         <button
           onClick={toggleAll}
@@ -239,11 +296,10 @@ export default function VisualisasiTab({ loading, items }: Props) {
         </button>
       </div>
 
-      {/* status kosong */}
       {loading && items.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl px-4 py-8 text-center text-gray-400 text-sm">Memuat diagram...</div>
       )}
-      {!loading && shownGroups.length === 0 && (
+      {!loading && shown.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl px-4 py-10 text-center text-gray-400 text-sm">
           <Network className="w-6 h-6 mx-auto mb-2 text-gray-300" />
           {items.length === 0
@@ -252,12 +308,13 @@ export default function VisualisasiTab({ loading, items }: Props) {
         </div>
       )}
 
-      {/* ===== kartu per kategori, diagram mini kanvasnya ===== */}
+      {/* ===== kartu per kategori — urutan grup & node mengikuti tab Konten ===== */}
       <div className="space-y-3">
-        {shownGroups.map((g) => {
+        {shown.map((g) => {
           const open = openMap[g.name] !== false;
-          const lay = open ? layoutCache[g.name] : null;
-          const withEdge = g.nodes.filter((n) => n.outIds.length > 0).length;
+          const lay = open ? layouts[g.name] : null;
+          const members = g.all.filter((x) => x.member);
+          const linkedCount = members.filter((m) => m.outIds.length > 0).length;
           return (
             <div key={g.name} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
               <button
@@ -270,11 +327,9 @@ export default function VisualisasiTab({ loading, items }: Props) {
                 </span>
                 <span className="font-bold text-sm text-gray-900 truncate">{g.name}</span>
                 <span className="shrink-0 inline-block px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                  {g.nodes.length} Node
+                  {members.length} Article
                 </span>
-                <span className="shrink-0 text-[11px] text-gray-400 whitespace-nowrap">
-                  {withEdge} berhubungan
-                </span>
+                <span className="shrink-0 text-[11px] text-gray-400 whitespace-nowrap">{linkedCount} with link</span>
                 <span className="ml-auto flex items-center gap-1.5 text-[11px] text-gray-400 whitespace-nowrap">
                   Klik untuk tutup/buka
                   <ChevronDown className={cn('w-4 h-4 text-gray-500 transition-transform', open ? '' : '-rotate-90')} />
@@ -284,27 +339,28 @@ export default function VisualisasiTab({ loading, items }: Props) {
               {open && (
                 <div className="border-t border-gray-100 bg-[#f6f7f9] overflow-x-auto px-3 py-3">
                   <div className="relative" style={{ width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}>
-                    {/* panah */}
                     <svg className="absolute inset-0 pointer-events-none" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
                       <defs>
                         <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                          <path d="M0,0 L10,5 L0,10 z" fill="#5b6068" />
+                          <path d="M0,0 L10,5 L0,10 z" fill="#6366f1" />
                         </marker>
                       </defs>
                       {lay!.edges.map((e, i) => (
-                        <path key={i} d={e.d} fill="none" stroke="#5b6068" strokeWidth={1.3} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
+                        <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.3} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
-                    {/* kotak */}
-                    {g.nodes.map((k) => {
+                    {g.all.map((k) => {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;
-                      const fill = ROLE_FILL[k.role] ?? FALLBACK_FILL;
+                      const cls = k.member ? (ROLE_FILL[k.role] ?? FALLBACK_FILL) : TARGET_FILL;
                       return (
                         <div
                           key={k.id}
-                          title={k.kw}
-                          className={cn('absolute rounded-xl px-2.5 flex items-center text-[12px] font-medium text-center justify-center leading-tight shadow-sm hover:shadow-md hover:brightness-[1.05] transition', fill)}
+                          title={k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`}
+                          className={cn(
+                            'absolute rounded-xl px-2.5 flex items-center text-[12px] font-medium text-center justify-center leading-tight shadow-sm hover:shadow-md transition',
+                            cls
+                          )}
                           style={{ left: p.x, top: p.y, width: W, height: H }}
                         >
                           <span className="line-clamp-2 break-words">{k.kw}</span>
@@ -319,14 +375,15 @@ export default function VisualisasiTab({ loading, items }: Props) {
         })}
       </div>
 
-      {/* legenda */}
+      {/* legenda — tekankan kesamaan materi dgn kolom Internal Link tab Konten */}
       <p className="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#5b8def]" /> inspire</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#69bfae]" /> educate</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#f2994a]" /> convert</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md bg-[#9aa3af]" /> tanpa role</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-7 h-4 rounded-md border-2 border-dashed border-indigo-300 bg-white" /> tujuan internal link</span>
         <span className="text-gray-300 hidden md:inline">|</span>
-        <span>diagram per kategori: kotak kiri = sumber, panah = alur Internal Link antar kolom (depth)</span>
+        <span><Link2 className="w-3 h-3 inline" /> semua isi kolom <b>Internal Link</b> di tab Konten tampil Sebagai kotak putus-putus (entri 1 per baris, urutan grup/role/tanggal identik dgn tab Konten)</span>
       </p>
     </motion.div>
   );
