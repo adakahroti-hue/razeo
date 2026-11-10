@@ -230,22 +230,27 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
             {/* tabel dalam grup */}
             {open && (
               <div className="overflow-x-auto border-t border-gray-100">
-                <table className="w-full text-left align-top" style={{ minWidth: 680 }}>
+                <table className="w-full table-fixed text-left align-top" style={{ minWidth: 680 }}>
+                    <colgroup>
+                      {COLS.map((h) => (
+                        <col key={h} style={{ width: `${100 / COLS.length}%` }} />
+                      ))}
+                    </colgroup>
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
                       {COLS.map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 whitespace-nowrap">{h}</th>
+                        <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 leading-tight align-bottom">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {g.rows.map((it) => (
                       <tr key={it.id} className="hover:bg-gray-50/60 align-top">
-                        <td className="px-4 py-2.5 max-w-[260px]">
-                          <span className="text-sm text-gray-900 block leading-snug break-words whitespace-normal" title={it.nama_produk}>{it.nama_produk}</span>
+                        <td className="px-4 py-2.5">
+                          <span className="text-sm text-gray-900 block leading-snug break-all whitespace-normal" title={it.nama_produk}>{it.nama_produk}</span>
                         </td>
-                        <td className="px-4 py-2.5 max-w-[300px]">
-                          <span className="text-xs text-gray-500 whitespace-normal break-words" title={it.judul_produk || ''}>{it.judul_produk || '—'}</span>
+                        <td className="px-4 py-2.5">
+                          <span className="text-xs text-gray-500 block whitespace-normal break-all" title={it.judul_produk || ''}>{it.judul_produk || '—'}</span>
                         </td>
                         <td className="px-4 py-2.5">
                           <span className="inline-block px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs tabular-nums">{fmtHarga(it.harga)}</span>
