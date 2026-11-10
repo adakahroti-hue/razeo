@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil, Folder, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ProdukKonten, { type ProductItem } from './ProdukKonten';
+import BundleKonten, { type BundleItem } from './BundleKonten';
 import DateField from '../components/DateField';
 import { fmtTanggal } from '../lib/dateFormat';
 
@@ -31,9 +32,15 @@ type Props = {
   onProdAdd: (row: any) => Promise<boolean>;
   onProdUpdate: (id: string, patch: any) => Promise<boolean>;
   onProdDelete: (id: string) => Promise<boolean>;
+  // sub-tab Bundle (tabel terpisah: bundles)
+  bundleLoading: boolean;
+  bundleItems: BundleItem[];
+  onBundleAdd: (row: any) => Promise<boolean>;
+  onBundleUpdate: (id: string, patch: any) => Promise<boolean>;
+  onBundleDelete: (id: string) => Promise<boolean>;
   // kontrol sub-bab (mengalir dari header App)
-  sub: 'artikel' | 'produk';
-  setSub: (v: 'artikel' | 'produk') => void;
+  sub: 'artikel' | 'produk' | 'bundle';
+  setSub: (v: 'artikel' | 'produk' | 'bundle') => void;
 };
 
 const ROLES = ['inspire', 'educate', 'convert'] as const;
@@ -63,7 +70,7 @@ type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 const splitLinks = (v: string | null): string[] =>
   (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
 
-export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, prodLoading, prodItems, onProdAdd, onProdUpdate, onProdDelete, sub, setSub }: Props) {
+export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, prodLoading, prodItems, onProdAdd, onProdUpdate, onProdDelete, bundleLoading, bundleItems, onBundleAdd, onBundleUpdate, onBundleDelete, sub, setSub }: Props) {
   const [modal, setModal] = useState<Modal>(null);
   const [draft, setDraft] = useState<Draft>({ ...kosong });
   const [busy, setBusy] = useState(false);
@@ -340,6 +347,17 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
           onAdd={onProdAdd}
           onUpdate={onProdUpdate}
           onDelete={onProdDelete}
+        />
+      )}
+
+      {/* tabel data — sub Bundle */}
+      {sub === 'bundle' && (
+        <BundleKonten
+          loading={bundleLoading}
+          items={bundleItems}
+          onAdd={onBundleAdd}
+          onUpdate={onBundleUpdate}
+          onDelete={onBundleDelete}
         />
       )}
       </React.Fragment>

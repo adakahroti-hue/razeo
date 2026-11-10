@@ -41,7 +41,7 @@ type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 const fmtHarga = (v: number | null) =>
   v == null ? '—' : `Rp ${Number(v).toLocaleString('id-ID')}`;
 
-const COLS = ['Nama Produk', 'Judul Produk', 'Link Artikel', 'Link Shopee', 'Harga', 'Tgl. Publikasi', 'Aksi'];
+const COLS = ['Nama Produk', 'Judul Produk', 'Harga', 'Tgl. Publikasi', 'Link Artikel', 'Link Shopee', 'Aksi'];
 
 export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete }: Props) {
   const [modal, setModal] = useState<Modal>(null);
@@ -247,14 +247,14 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
                         <td className="px-4 py-2.5 max-w-[300px]">
                           <span className="text-xs text-gray-500 whitespace-normal break-words" title={it.judul_produk || ''}>{it.judul_produk || '—'}</span>
                         </td>
-                        <td className="px-4 py-2.5">{linkCell(it.link_artikel, 'artikel')}</td>
-                        <td className="px-4 py-2.5">{linkCell(it.link_shopee, 'shopee')}</td>
                         <td className="px-4 py-2.5">
                           <span className="inline-block px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs tabular-nums">{fmtHarga(it.harga)}</span>
                         </td>
                         <td className="px-4 py-2.5">
                           <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
                         </td>
+                        <td className="px-4 py-2.5">{linkCell(it.link_artikel, 'artikel')}</td>
+                        <td className="px-4 py-2.5">{linkCell(it.link_shopee, 'shopee')}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => openEdit(it)} className={cn(iconBtn, 'border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700')} title="Ubah" aria-label="Ubah">

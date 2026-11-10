@@ -54,6 +54,7 @@ import PropertyScreen from './screens/PropertyScreen';
 import OverviewTab from './tabs/OverviewTab';
 import KontenTab, { ContentItem } from './tabs/KontenTab';
 import { type ProductItem } from './tabs/ProdukKonten';
+import BundleKonten, { type BundleItem } from './tabs/BundleKonten';
 import CekTab, { KINDS, Kind } from './tabs/CekTab';
 import { createClient, User } from '@supabase/supabase-js';
 import TaskTab, { type TaskItem } from './tabs/TaskTab'
@@ -245,8 +246,10 @@ export default function App() {
   const [contentLoading, setContentLoading] = useState(false);
   const [productItems, setProductItems] = useState<ProductItem[]>([]);
   const [productLoading, setProductLoading] = useState(false);
+  const [bundleItems, setBundleItems] = useState<BundleItem[]>([]);
+  const [bundleLoading, setBundleLoading] = useState(false);
   // sub-bab Tab Konten: artikel | produk (tampil di header)
-  const [kontenSub, setKontenSub] = useState<'artikel' | 'produk'>('artikel');
+  const [kontenSub, setKontenSub] = useState<'artikel' | 'produk' | 'bundle'>('artikel');
   // Overview (ringkasan performa)
   const [ovData, setOvData] = useState<any>(null);
   const [ovLoading, setOvLoading] = useState(false);
@@ -1580,6 +1583,25 @@ export default function App() {
     try { await postContent({ action: 'product-delete', id }); await loadProducts(); return true; } catch { return false; }
   };
 
+  // ===== tab KONTEN > sub-tab Bundle: daftar/tambah/ubah/hapus (tabel bundles) =====
+  const loadBundles = async () => {
+    setBundleLoading(true);
+    try {
+      const d = await postContent({ action: 'bundle-list' });
+      setBundleItems(d.items || []);
+    } catch { /* pesan sudah lewat postContent */ }
+    finally { setBundleLoading(false); }
+  };
+  const addBundle = async (row: any) => {
+    try { await postContent({ action: 'bundle-add', ...row }, 201); await loadBundles(); return true; } catch { return false; }
+  };
+  const updateBundle = async (id: string, patch: any) => {
+    try { await postContent({ action: 'bundle-update', id, ...patch }); await loadBundles(); return true; } catch { return false; }
+  };
+  const deleteBundle = async (id: string) => {
+    try { await postContent({ action: 'bundle-delete', id }); await loadBundles(); return true; } catch { return false; }
+  };
+
   // ===== tab TASK: rencana tugas (nama, prioritas, status) =====
   const loadTasks = async () => {
     setTaskLoading(true);
@@ -1611,6 +1633,7 @@ export default function App() {
     }
     if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
       loadProducts(); // sub-tab Produk ikut dimuat bersama konten
+      loadBundles();  // sub-tab Bundle ikut dimuat bersama konten
     if (viewState === 'dashboard' && currentTab === 'task') loadTasks();
     if (viewState === 'dashboard' && currentTab === 'cek') loadCek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2713,7 +2736,7 @@ export default function App() {
             {/* Sub-bab Tab Konten (Artikel | Produk) — di header */}
             {currentTab === 'konten' && (
               <div className="hidden md:flex flex-1 items-center justify-center gap-1.5 min-w-0">
-                {(['artikel', 'produk'] as const).map((t) => (
+                {(['artikel', 'produk', 'bundle'] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setKontenSub(t)}
@@ -3012,7 +3035,7 @@ export default function App() {
       {/* Sub-bab Tab Konten — layar kecil */}
       {currentTab === 'konten' && (
         <div className="md:hidden sticky top-[6.3rem] z-30 bg-gray-50/95 backdrop-blur px-3 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-gray-200">
-          {(['artikel', 'produk'] as const).map((t) => (
+          {(['artikel', 'produk', 'bundle'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setKontenSub(t)}
@@ -3067,6 +3090,11 @@ export default function App() {
                 onProdAdd={addProduct}
                 onProdUpdate={updateProduct}
                 onProdDelete={deleteProduct}
+                bundleLoading={bundleLoading}
+                bundleItems={bundleItems}
+                onBundleAdd={addBundle}
+                onBundleUpdate={updateBundle}
+                onBundleDelete={deleteBundle}
               />
             </div>
           )}

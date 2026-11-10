@@ -346,6 +346,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ deleted: true });
       }
 
+      // --- tab KONTEN > sub-tab Bundle: daftar (siapa pun anggota boleh baca) ---
+      if (action === "bundle-list") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("bundles")
+          .select("*")
+          .eq("project_id", info.projectId)
+          .order("created_at", { ascending: false });
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel bundles belum ada — jalankan migrasi SQL 0011 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ items: data || [] });
+      }
+
+      // --- tab KONTEN > sub-tab Bundle: tambah ---
+      if (action === "bundle-add") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const row = {
+          project_id: info.projectId,
+          uid: user.uid,
+          url_bundle: String(body.url_bundle || "").trim().slice(0, 2048),
+          nama_bundle: String(body.nama_bundle || "").trim().slice(0, 300),
+        };
+        if (!row.url_bundle) return res.status(400).json({ error: "Url bundle wajib diisi" });
+        if (!row.nama_bundle) return res.status(400).json({ error: "Nama bundle wajib diisi" });
+        const { data, error } = await supabase.from("bundles").insert(row).select().single();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel bundles belum ada — jalankan migrasi SQL 0011 di Supabase" });
+          throw error;
+        }
+        return res.status(201).json({ item: data });
+      }
+
+      // --- tab KONTEN > sub-tab Bundle: ubah ---
+      if (action === "bundle-update") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const patchRow: any = { updated_at: new Date().toISOString() };
+        if (body.url_bundle !== undefined) patchRow.url_bundle = String(body.url_bundle || "").trim().slice(0, 2048);
+        if (body.nama_bundle !== undefined) patchRow.nama_bundle = String(body.nama_bundle || "").trim().slice(0, 300);
+        if (!patchRow.url_bundle) return res.status(400).json({ error: "Url bundle tidak boleh kosong" });
+        if (patchRow.nama_bundle === "") return res.status(400).json({ error: "Nama bundle tidak boleh kosong" });
+        const { data, error } = await supabase
+          .from("bundles")
+          .update(patchRow)
+          .eq("id", id)
+          .eq("project_id", info.projectId) // batasi ke project ini saja
+          .select()
+          .single();
+        if (error) throw error;
+        return res.status(200).json({ item: data });
+      }
+
+      // --- tab KONTEN > sub-tab Bundle: hapus ---
+      if (action === "bundle-delete") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const id = String(body.id || "");
+        if (!id) return res.status(400).json({ error: "id wajib diisi" });
+        const { error, count } = await supabase
+          .from("bundles")
+          .delete({ count: "exact" })
+          .eq("id", id)
+          .eq("project_id", info.projectId);
+        if (error) throw error;
+        if (!count) return res.status(404).json({ error: "Baris tidak ditemukan" });
+        return res.status(200).json({ deleted: true });
+      }
+
       // --- nama event scroll & CTA project (baca) ---
       if (action === "events-get") {
         const info = await requireProject(user.uid, req);
