@@ -155,37 +155,31 @@ export default function DashboardTab({
                 </div>
               )}
 
-              <div className="flex flex-col lg:flex-row gap-6 items-start">
-                {/* ===== SIDEBAR KIRI: kategori modul + info project/pengguna ===== */}
-                <aside className="w-full lg:w-64 shrink-0 bg-white border border-gray-200 rounded-2xl p-4 lg:sticky lg:top-24">
-                  <div className="flex items-center justify-between px-1 mb-3">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Categories</span>
-                  </div>
+              {/* ===== PEMILIH MODUL: horizontal di atas (bukan sidebar lagi) ===== */}
+              <div className="flex gap-1.5 flex-wrap mb-6 p-1.5 bg-white border border-gray-200 rounded-2xl overflow-x-auto">
+                {AUDIT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setAuditTab(tab.id as any)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all",
+                      auditTab === tab.id
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    )}
+                  >
+                    <tab.icon className={cn("w-3.5 h-3.5 shrink-0", auditTab === tab.id ? "text-white" : "text-gray-400")} />
+                    {tab.label}
+                    {tab.isNew && (
+                      <span className={cn("text-[8px] font-black px-1 py-px rounded", auditTab === tab.id ? "bg-white/25 text-white" : "bg-violet-100 text-violet-600")}>
+                        NEW
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-                  <div className="space-y-1">
-                    {AUDIT_TABS.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setAuditTab(tab.id as any)}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all text-left font-semibold",
-                          auditTab === tab.id
-                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                        )}
-                      >
-                        <tab.icon className={cn("w-4 h-4 shrink-0", auditTab === tab.id ? "text-white" : "text-gray-400")} />
-                        <span className="flex-1 truncate">{tab.label}</span>
-                        {tab.isNew && (
-                          <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded", auditTab === tab.id ? "bg-white/25 text-white" : "bg-violet-100 text-violet-600")}>
-                            NEW
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                </aside>
+              <div className="flex flex-col gap-6 items-start">
 
                 <div className="flex-1 min-w-0 w-full">
         {/* Audit Table */}

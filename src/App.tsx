@@ -17,6 +17,7 @@ import {
   Globe,
   History,
   LogOut,
+  Network,
   MousePointer2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -116,11 +117,12 @@ const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean 
 ];
 
 // Navigasi utama — chip di header lama, pindah ke sidebar kiri
-const TAB_LIST: Array<{ id: 'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker'; label: string; icon: any }> = [
+const TAB_LIST: Array<{ id: TabId; label: string; icon: any }> = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'cek', label: 'Cek', icon: Eye },
   { id: 'dashboard', label: 'Optimasi', icon: Target },
   { id: 'konten', label: 'Konten', icon: FileText },
+  { id: 'visualisasi', label: 'Visualisasi', icon: Network },
   { id: 'task', label: 'Task', icon: ListTodo },
   { id: 'tracker', label: 'Perubahan', icon: History },
 ];
@@ -132,10 +134,10 @@ const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> =
 };
 
 // ===== slug URL per tab (sesuai nama tab, huruf kecil tanpa spasi) =====
-type TabId = 'overview' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker' | 'pengaturan';
+type TabId = 'overview' | 'cek' | 'dashboard' | 'konten' | 'visualisasi' | 'task' | 'tracker' | 'pengaturan';
 const TAB_PATHS: Record<TabId, string> = {
   overview: '/overview', cek: '/cek', dashboard: '/optimasi', konten: '/konten',
-  task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
+  visualisasi: '/visualisasi', task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
 };
 const TAB_IDS = Object.keys(TAB_PATHS) as TabId[];
 const segToTab = (pathname: string): TabId | null => {
@@ -151,6 +153,7 @@ const LazyKontenTab       = React.lazy(() => import('./tabs/KontenTab'));
 const LazyTaskTab         = React.lazy(() => import('./tabs/TaskTab'));
 const LazyAksiTab         = React.lazy(() => import('./pages/AksiTab'));
 const LazySettingsPage    = React.lazy(() => import('./pages/SettingsPage'));
+const LazyVisualisasiTab   = React.lazy(() => import('./tabs/VisualisasiTab'));
 const LazyAksiAddLogModal = React.lazy(() => import('./pages/AksiTab').then((m) => ({ default: m.AksiAddLogModal })));
 
 // Layar buka pertama kali / restore sesi: bar persegi panjang yang terisi berulang
@@ -1653,7 +1656,7 @@ export default function App() {
         if (selectedSite && data.length === 0) fetchData(selectedSite); // isi data dashboard kalau belum ada
       }
     }
-    if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
+    if (viewState === 'dashboard' && (currentTab === 'konten' || currentTab === 'visualisasi')) loadContent();
       loadProducts(); // sub-tab Produk ikut dimuat bersama konten
       loadBundles();  // sub-tab Bundle ikut dimuat bersama konten
     if (viewState === 'dashboard' && currentTab === 'task') loadTasks();
@@ -3144,6 +3147,11 @@ export default function App() {
                 onBundleUpdate={updateBundle}
                 onBundleDelete={deleteBundle}
               />
+            </div>
+          )}
+          {currentTab === 'visualisasi' && (
+            <div key="visualisasi">
+              <LazyVisualisasiTab loading={contentLoading} items={contentItems} />
             </div>
           )}
           {currentTab === 'task' && (

@@ -6,6 +6,7 @@ import ProdukKonten, { type ProductItem } from './ProdukKonten';
 import BundleKonten, { type BundleItem } from './BundleKonten';
 import DateField from '../components/DateField';
 import { fmtTanggal } from '../lib/dateFormat';
+import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
 
 export type ContentItem = {
   id: string;
@@ -88,6 +89,8 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
   const [busy, setBusy] = useState(false);
   // popup preview isi artikel (render HTML)
   const [preview, setPreview] = useState<ContentItem | null>(null);
+  // URL internal -> kata kunci tujuan (tampilan kolom & diagram)
+  const kwMap = keywordMap(items);
   // ===== toolbar: cari, filter, urut, statistik, tutup semua =====
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState(''); // '' = semua role (Artikel saja)
@@ -322,19 +325,21 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 max-w-[240px]">
+                        <td className="px-4 py-2.5 max-w-[260px]">
                           {(() => {
                             const ls = splitLinks(it.internal_link);
                             if (!ls.length) return <span className="text-gray-400">—</span>;
                             return (
                               <div className="flex flex-col gap-1 min-w-0">
-                                {ls.map((u, i) => (
-                                  <a key={i} href={u} target="_blank" rel="noreferrer" title={u}
-                                     className="inline-flex items-start gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100">
-                                    <Link2 className="w-3 h-3 shrink-0 mt-0.5" />
-                                    <span className="whitespace-pre-wrap break-all">{u}</span>
-                                  </a>
-                                ))}
+                                {ls.map((u, i) => {
+                                  const kw = urlToKeyword(u, kwMap);
+                                  return (
+                                    <span key={i} title={u}
+                                       className="inline-block self-start px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs break-words whitespace-normal">
+                                      {kw} <span className="text-indigo-400">&rarr;</span>
+                                    </span>
+                                  );
+                                })}
                               </div>
                             );
                           })()}
@@ -477,7 +482,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                   <input value={draft.link_artikel} onChange={(e) => setDraft({ ...draft, link_artikel: e.target.value })} className={cn(cellInput, 'mt-1')} placeholder="https://..." />
                 </label>
                 <label className="text-xs font-medium text-gray-500 sm:col-span-2">Internal Link
-                  <textarea value={draft.internal_link} onChange={(e) => setDraft({ ...draft, internal_link: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Satu URL per baris — artikel lain yang di-link dari konten ini" />
+                  <textarea value={draft.internal_link} onChange={(e) => setDraft({ ...draft, internal_link: e.target.value })} className={cn(cellInput, 'mt-1 h-24 resize-y leading-relaxed')} placeholder="Satu URL tujuan per baris — di tabel tampil sebagai kata kunci tujuannya" />
                 </label>
                 <label className="text-xs font-medium text-gray-500 sm:col-span-2">Isi Artikel (mode HTML WordPress)
                   <textarea
