@@ -271,10 +271,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                           )}
                         </td>
                         <td className="px-4 py-2.5 max-w-[300px]">
-                          <span className="text-sm font-bold text-gray-900 block leading-snug" title={it.judul}>{it.judul}</span>
+                          <span className="text-sm font-normal text-gray-900 block leading-snug" title={it.judul}>{it.judul}</span>
                         </td>
                         <td className="px-4 py-2.5 max-w-[240px]">
-                          <span className="text-xs text-gray-500 line-clamp-2" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
+                          <span className="text-xs text-gray-500 whitespace-normal break-words" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
                         </td>
                         <td className="px-4 py-2.5">
                           <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
@@ -296,9 +296,9 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                               <div className="flex flex-col gap-1 min-w-0">
                                 {ls.map((u, i) => (
                                   <a key={i} href={u} target="_blank" rel="noreferrer" title={u}
-                                     className="inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100">
-                                    <Link2 className="w-3 h-3 shrink-0" />
-                                    <span className="truncate" title={u}>{u}</span>
+                                     className="inline-flex items-start gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100">
+                                    <Link2 className="w-3 h-3 shrink-0 mt-0.5" />
+                                    <span className="whitespace-pre-wrap break-all">{u}</span>
                                   </a>
                                 ))}
                               </div>
