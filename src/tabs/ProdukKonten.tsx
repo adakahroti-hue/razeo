@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, ShoppingBag, Trash2, X, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
 import DateField from '../components/DateField';
+import { fmtTanggal } from '../lib/dateFormat';
 
 export type ProductItem = {
   id: string;
@@ -161,7 +162,7 @@ export default function ProdukKonten({ loading, items, onAdd, onUpdate, onDelete
                   <span className="text-xs font-semibold text-gray-800 whitespace-nowrap tabular-nums">{fmtHarga(it.harga)}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.tanggal_publikasi || '—'}</span>
+                  <span className="text-xs text-gray-600 break-words whitespace-normal">{fmtTanggal(it.tanggal_publikasi)}</span>
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1.5">

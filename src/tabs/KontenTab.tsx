@@ -4,6 +4,7 @@ import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Penci
 import { cn } from '../lib/utils';
 import ProdukKonten, { type ProductItem } from './ProdukKonten';
 import DateField from '../components/DateField';
+import { fmtTanggal } from '../lib/dateFormat';
 
 export type ContentItem = {
   id: string;
@@ -159,7 +160,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                   <span className="text-xs text-gray-500 block break-words whitespace-normal" title={it.meta_deskripsi || ''}>{it.meta_deskripsi || '—'}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="text-xs text-gray-600 break-words whitespace-normal">{it.tanggal_publikasi || '—'}</span>
+                  <span className="text-xs text-gray-600 break-words whitespace-normal">{fmtTanggal(it.tanggal_publikasi)}</span>
                 </td>
                 <td className="px-4 py-2.5">
                   {it.link_artikel ? (
@@ -176,15 +177,10 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                     if (!ls.length) return <span className="text-gray-400">—</span>;
                     return (
                       <div className="flex flex-col gap-1 min-w-0">
-                        {ls.slice(0, 3).map((u, i) => (
+                        {ls.map((u, i) => (
                           <a key={i} href={u} target="_blank" rel="noreferrer" title={u}
-                             className="text-xs text-emerald-700 hover:underline truncate">{u}</a>
+                             className="text-xs text-emerald-700 hover:underline break-all">{u}</a>
                         ))}
-                        {ls.length > 3 && (
-                          <span className="text-[11px] text-gray-400 font-bold" title={ls.join('\n')}>
-                            +{ls.length - 3} link lainnya
-                          </span>
-                        )}
                       </div>
                     );
                   })()}
