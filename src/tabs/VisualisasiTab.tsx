@@ -56,7 +56,7 @@ const PAD_TOP = 66;  // band atas utk LABEL kolom + lane balik, jauh dari baris 
 const PAD_BOT = 20;
 const LANE_MIN = 30;  // lane atas mulai (d bawah label ~25, d atas baris gtk 66)
 const SUB_MAX = 5;    // maks baris per DERET — lebih dari ini kolom dipecah jadi sub-deret samping
-const SUB_GAP = 16;   // jarak antar sub-deret dlm satu kolom role
+const SUB_GAP = 44;   // jarak antar sub-deret (lega utk jalur vertikal 90deg)
 const LANE_STEP = 10;  // step sinkronin 4 slot utk hindari menumpuk
 
 const colX = (c: number) => PAD_X + c * (W + GX);
@@ -152,9 +152,20 @@ function runLayout(nodes: GNode[]): Graph {
   // ===== RUTE PANAH — SEMUA bezier murni (tanpa siku, tanpa L) =====
   // maju : satu kurva halus kanan-sumber -> kiri-target (margin 6/9 — tak menempel).
   // setara/mundur : keluar kanan -> naik landai lane per-edge -> horizontal -> turun landai masuk kiri.
+  // ===== KONEKTOR ORTHOGONAL (Siku 90°) — lewat ruang kosong antar blok =====
+  // FWD  (b > a): keluar tepi kanan sumber -> horizontal ke GAP tengah -> vertikal ke y target -> masuk kiri target
+  // BACK/SAME: keluar tepi kanan sumber -> naik pendek ke LANE TOP -> horizontal (di ruang atas) -> turun di GAP -> masuk kiri
+  // Semua segmen lurus + sudut r-8 (elbow diraba rapi), tanpa melintasi kotak.
   const edges: { d: string }[] = [];
+  const gapEnd = new Map<number, number>();   // blok role -> tepi kanan blok
+  for (const rc of sortedRoleCols) {
+    const sc = subCountOf.get(rc)!;
+    gapEnd.set(rc, colStart.get(rc)! + sc * W + (sc - 1) * SUB_GAP);
+  }
+  const gEnd = (rc: number) => gapEnd.get(rc) ?? colX(rc) + W;
   let eN = 0;
-  const O = 6, E = 9;
+  const O = 6, E = 6, R = 8;
+  const EL = (x: number, y: number) => `${x} ${y}`; // titik elbow
   for (let a = 0; a < n; a++) {
     for (const b of outgoing[a]) {
       const pa = pos.get(nodes[a].id), pb = pos.get(nodes[b].id);
@@ -166,30 +177,41 @@ function runLayout(nodes: GNode[]): Graph {
       const x1 = pb.x - E,     y1 = rowY(rb) + H / 2;
       const ca = roleCol[a], cb = roleCol[b];
       const li = eN++;
-      if (cb > ca) {
-        edges.push({ d: d_push(x0, y0, x1, y1, li) });
-      } else {
-        const lane = LANE_MIN + (li % 4) * LANE_STEP;
-        const upX = Math.max(x0 + 16, pa.x + W + 18);
-        const dnX = Math.max(x1 - 48, pb.x - 60 - (li % 3) * 14);
-        edges.push({ d: d_lane(x0, y0, x1, y1, upX, dnX, lane) });
-      }
-    }
-  }
+      let d: string;
 
-  // kurva maju 1 langkah — landai keluar kanan, landai masuk kiri (tanpa sudut)
-  function d_push(ax: number, ay: number, bx: number, by: number, seed: number): string {
-    const sag = 30 + (seed % 3) * 12;
-    return `M ${ax} ${ay} C ${ax + sag} ${ay}, ${bx - sag} ${by}, ${bx} ${by}`;
-  }
-  // keluar -> naik landai -> horizontal -> turun landai -> masuk kiri (semua bezier)
-  function d_lane(ax: number, ay: number, bx: number, by: number, upX: number, dnX: number, lane: number): string {
-    return (
-      `M ${ax} ${ay} ` +
-      `C ${ax + 20} ${ay}, ${upX - 10} ${ay - 10}, ${upX} ${lane} ` +
-      `C ${upX + 16} ${lane}, ${dnX - 16} ${lane}, ${dnX} ${lane} ` +
-      `C ${dnX + 44} ${lane}, ${bx - 40} ${by + (lane > by ? 26 : -26)}, ${bx} ${by}`
-    );
+      if (cb > ca || (ca === cb && pa.x < pb.x)) {
+        // maju: horizontal -> sudut 90 -> vertikal -> sudut 90 -> horizontal (direction-aware utk y naik/turun)
+        const dir = y1 >= y0 ? 1 : -1;
+        let at: number;
+        if (ca === cb) {
+          // sub-deret dlm role sama: kolom vertikal di TENGAH gap antar sub (SUB_GAP lega utk jalur)
+          at = Math.max(x0 + 8, (x0 + x1) / 2 + 6);
+        } else {
+          // antar blok role: lane vertikal di gap lebar antar blok role
+          const gA = gEnd(ca), gB = colStart.get(cb)!;
+          at = Math.min(gA + 14 + (li % 5) * 14, Math.max(gA + 34, (gA + gB) / 2));
+        }
+        const x0p = Math.min(x0, at - R - 1);
+        d =
+          `M ${x0} ${y0} ` +
+          `H ${x0p} Q ${at - R} ${y0}, ${at} ${y0 + dir * R} ` +
+          `V ${y1 - dir * R} Q ${at} ${y1}, ${at + R} ${y1} ` +
+          `H ${x1}`;
+      } else {
+        // backward / same: keluar kanan -> naik ke lane atas (ruang kosong antara label & baris pertama) -> turun di gap kiri target -> masuk kiri
+        const lane = LANE_MIN + (li % 4) * LANE_STEP;
+        const gQ = Math.max(colStart.get(cb)! - 16, colX(cb) - 16); // gap sblm blok target
+        const xup = x0 + 14;
+        d =
+          `M ${x0} ${y0} ` +
+          `H ${xup - R} Q ${xup} ${y0}, ${xup} ${y0 - R} ` +
+          `V ${lane + R} Q ${xup} ${lane}, ${xup + R} ${lane} ` +
+          `H ${gQ - R} Q ${gQ} ${lane}, ${gQ} ${lane + R} ` +
+          `V ${y1 - R} Q ${gQ} ${y1}, ${gQ + R} ${y1} ` +
+          `H ${x1}`;
+      }
+      edges.push({ d });
+    }
   }
 
   return { pos, edges, width, height, colHeaders };
@@ -402,12 +424,12 @@ export default function VisualisasiTab({ loading, items }: Props) {
                   <div className="relative" style={{ width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}>
                     <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
                       <defs>
-                        <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                           <path d="M0,0 L10,5 L0,10 z" fill="#6366f1" />
                         </marker>
                       </defs>
                       {lay!.edges.map((e, i) => (
-                        <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.3} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
+                        <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.1} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
                     {/* label kolom funnel — satu per role (sub-deret samping dkk label kosong) */}
@@ -431,12 +453,12 @@ export default function VisualisasiTab({ loading, items }: Props) {
                           key={k.id}
                           title={k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`}
                           className={cn(
-                            'absolute rounded-xl px-2.5 flex items-center text-[12px] font-medium text-center justify-center leading-tight shadow-sm hover:shadow-md transition',
+                            'absolute rounded-[10px] px-2.5 flex items-center text-[12px] font-semibold text-center justify-center leading-tight shadow-[0_1px_3px_rgba(15,23,42,0.10)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition',
                             cls
                           )}
                           style={{ left: p.x, top: p.y, width: W, height: H }}
                         >
-                          <span className="line-clamp-2 break-words">{k.kw}</span>
+                          <span className="line-clamp-2 break-words text-center">{k.kw}</span>
                         </div>
                       );
                     })}
