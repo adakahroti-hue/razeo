@@ -783,18 +783,6 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                         <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.1} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
-                    {/* label kolom funnel — satu per role (sub-deret samping dkk label kosong) */}
-                    {lay!.colHeaders.map((h, i) =>
-                      h.label ? (
-                        <span
-                          key={i}
-                          className={cn('absolute text-[10px] font-black tracking-wider text-center leading-none', h.cls)}
-                          style={{ left: h.x, width: h.w, top: 12 }}
-                        >
-                          {h.label}
-                        </span>
-                      ) : null
-                    )}
                     {g.all.map((k) => {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;

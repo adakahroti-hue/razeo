@@ -3264,7 +3264,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
               setViewState={setViewState}
             />
           )}
-          {['overview', 'insight', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
+          {['overview', 'insight', 'konten', 'task', 'cek', 'pengaturan', 'visualisasi'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
           <LazyDashboardTab
             AUDIT_TABS={AUDIT_TABS}
             Ga4EventBreakdown={Ga4EventBreakdown}
