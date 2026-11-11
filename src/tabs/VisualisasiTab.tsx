@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2 } from 'lucide-react';
+import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, MousePointerClick } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ContentItem } from './KontenTab';
 import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
@@ -437,6 +437,18 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
     e.stopPropagation(); // jangan ikut pancing marquee/pan kanvas
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
 
+    if (selectMode) {
+      // MODE SELECT: klik diam = toggle pilih; seret (kotak sudah terpilih) = geser seluruh blok
+      const already = (sel[cat] || []).includes(id);
+      pending.current = { cat, id, moved: false };
+      const picks: string[] = already ? sel[cat]! : [id];
+      const mv: Record<string, { dx: number; dy: number }> = {};
+      for (const i of picks) mv[i] = getFix(cat, i);
+      dragData.current = { ids: picks, moves: mv, cat, sx: e.clientX, sy: e.clientY };
+      setDragId(id);
+      return;
+    }
+
     let ids: string[];
     if (e.shiftKey) {
       // Shift+klik = blok: akumulasi pilihan tanpa drag
@@ -462,6 +474,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
     const dx = Math.round(e.clientX - d.sx);
     const dy = Math.round(e.clientY - d.sy);
     if (!dx && !dy) return;
+    if (pending.current) pending.current.moved = true;
     // terapkan delta YG SAMA ke seluruh id terpilih → posisi relatif antar kotak tetap
     for (const id of d.ids) {
       const b = d.moves[id];
@@ -469,6 +482,11 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
     }
   };
   const onBoxUp = () => {
+    const p = pending.current;
+    if (p) {
+      pending.current = null;
+      if (!p.moved) toggleSel(p.cat, p.id); // klik diam = pilih / batal pilih
+    }
     if (dragData.current) {
       dragData.current = null;
       setDragId(null);
@@ -526,6 +544,12 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   // Shift+di area kosong = blok persegi (rubber band), ukuran dlm koordinat LAYAR
   const marquee = useRef<{ cat: string; sx: number; sy: number } | null>(null);
   const [marqBox, setMarqBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // ===== MODE SELECT =====
+  // ON  → klik kotak = pilih/batal pilih (bukan lgsg geser), seret kotak terpilih = pindahkan blok,
+  //       seret area kosong = blok persegi (tanpa Shift). Kanvas hanya bisa digeser saat mode OFF.
+  const [selectMode, setSelectMode] = useState(false);
+  // penanda klik TANPA geser (utk toggle pilih saat mode select)
+  const pending = useRef<{ cat: string; id: string; moved: boolean } | null>(null);
   // Esc = lepas semua blok; keluar mode edit juga bersih
   useEffect(() => {
     // kategori yg keluar mode edit → lepas pilihannya
@@ -580,6 +604,23 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
               selesai semua
             </button>
           </span>
+        )}
+        {nEdit > 0 && (
+          <button
+            onClick={() => setSelectMode((v) => !v)}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors',
+              selectMode
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:text-indigo-600'
+            )}
+            title={selectMode
+              ? 'Mode Select aktif: klik kotak utk pilih, seret utk pindahkan blok terpilih. Matikan utk geser bebas per kotak.'
+              : 'Mode Select mati: seret langsung geser kotak utk kategori ini.'}
+          >
+            <MousePointerClick className="w-3.5 h-3.5" />
+            {selectMode ? 'Mode Select: ON' : 'Mode Select: OFF'}
+          </button>
         )}
         {nEdit > 0 && nSelAll() > 0 && (
           <button
@@ -668,11 +709,15 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                   {/* mode edit: kanvas LUAS (ruang kosong utk geser bebas) + offset geser kanvas */}
                   {ed && (
                     <div className="flex items-center gap-2 mb-2.5 text-[11px] font-bold text-emerald-700">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200">
-                        ✋ Klik & tarik kotak untuk memindahkannya
+                      <span className={cn('inline-flex items-center gap-1.5 px-2 py-1 rounded-md border', selectMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-emerald-50 border-emerald-200')}>
+                        {selectMode ? '⬚ Mode Select: klik kotak utk pilih, lalu seret utk pindahkan blok' : '✋ Klik & tarik kotak untuk memindahkannya'}
                       </span>
                       <span className="hidden sm:inline text-gray-400 font-medium">geser area abu-abu = geser seluruh tampilan</span>
-                      <span className="hidden md:inline text-gray-400 font-medium">Shift+klik / Shift+blok area = pilih banyak, lalu seret</span>
+                      <span className="hidden md:inline text-gray-400 font-medium">
+                        {selectMode
+                          ? 'klik / blok area = pilih banyak · lepas pilihan dgn tombol lepas atau Esc'
+                          : 'Shift+klik / Shift+blok area = pilih banyak, lalu seret'}
+                      </span>
                       {nSel(g.name) > 0 && (
                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700">
                           🧱 {nSel(g.name)} kotak terpilih
@@ -707,8 +752,8 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       // cuma kalau klik di area kosong (bukan kotak)
                       if ((e.target as HTMLElement).closest('[data-node]')) return;
                       const r0 = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      if (e.shiftKey) {
-                        // Shift+seret area kosong = BLOK persegi (rubber band)
+                      if (e.shiftKey || selectMode) {
+                        // Shift+seret (atau seret saat Mode Select) = BLOK persegi (rubber band)
                         e.preventDefault();
                         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
                         marquee.current = { cat: g.name, sx: e.clientX - r0.left, sy: e.clientY - r0.top };
