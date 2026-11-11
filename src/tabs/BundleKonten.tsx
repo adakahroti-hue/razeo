@@ -24,7 +24,7 @@ type Draft = typeof kosong;
 // mode popup: 'add' = bundle baru, 'edit' = ubah bundle lama
 type Modal = { mode: 'add' } | { mode: 'edit'; id: string } | null;
 
-const COLS = ['Url Bundle', 'Nama Bundle', 'Aksi'];
+const COLS = ['Nama Bundle', 'Url Bundle', 'Aksi'];
 
 export default function BundleKonten({ loading, items, onAdd, onUpdate, onDelete }: Props) {
   const [modal, setModal] = useState<Modal>(null);
@@ -123,6 +123,9 @@ export default function BundleKonten({ loading, items, onAdd, onUpdate, onDelete
             )}
             {vis.map((it) => (
               <tr key={it.id} className="hover:bg-gray-50/60 align-top">
+                <td className="px-4 py-2.5 max-w-[280px]">
+                  <span className="text-sm text-gray-900 block leading-snug break-words whitespace-normal" title={it.nama_bundle}>{it.nama_bundle}</span>
+                </td>
                 <td className="px-4 py-2.5 max-w-[420px]">
                   <a
                     href={it.url_bundle}
@@ -134,9 +137,6 @@ export default function BundleKonten({ loading, items, onAdd, onUpdate, onDelete
                     <Link2 className="w-3 h-3 shrink-0 mt-0.5" />
                     <span className="whitespace-pre-wrap break-all">{it.url_bundle}</span>
                   </a>
-                </td>
-                <td className="px-4 py-2.5 max-w-[280px]">
-                  <span className="text-sm text-gray-900 block leading-snug break-words whitespace-normal" title={it.nama_bundle}>{it.nama_bundle}</span>
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1.5">

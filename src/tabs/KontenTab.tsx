@@ -275,7 +275,7 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                 <table className="w-full text-left align-top" style={{ minWidth: 940 }}>
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
-                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Isi Artikel', 'Tgl. Publikasi', 'Link', 'Internal Link', 'Aksi'].map((h) => (
+                      {['Role', 'Target Keyword', 'Judul', 'Meta Deskripsi', 'Isi Artikel', 'Internal Link', 'Tgl. Publikasi', 'Link', 'Aksi'].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-[11px] uppercase tracking-wide font-medium text-gray-400 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -313,18 +313,6 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                             <FileCode className="w-4 h-4" />
                           </button>
                         </td>
-                        <td className="px-4 py-2.5">
-                          <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {it.link_artikel ? (
-                            <a href={it.link_artikel} target="_blank" rel="noreferrer" title="Buka artikel" aria-label="Buka artikel" className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
                         <td className="px-4 py-2.5 max-w-[260px]">
                           {(() => {
                             const ls = splitLinks(it.internal_link);
@@ -343,6 +331,18 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
                               </div>
                             );
                           })()}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="text-xs text-gray-600 whitespace-nowrap">{fmtTanggal(it.tanggal_publikasi)}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {it.link_artikel ? (
+                            <a href={it.link_artikel} target="_blank" rel="noreferrer" title="Buka artikel" aria-label="Buka artikel" className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">

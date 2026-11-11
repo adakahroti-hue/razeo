@@ -23,21 +23,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const analyticsdata = google.analyticsdata({ version: "v1beta", auth: client });
 
-    // ===== Mode COMPARE (tab Cek): sesi & scroll 75% per halaman, dua periode =====
     // ===== Mode USERS (tab Insight): % Returning user = Returning / Total x 100 =====
+    // NOTE (rev 2026-11): "returningUsers" DITOLAK beberapa property GA4
+    // ("Field returningUsers is not a valid metric", saran: activeUsers).
+    // Jadi coba 3 cara berurutan, pakai yang pertama sukses:
+    //   1) seri penuh  [totalUsers, newUsers, returningUsers]
+    //   2) [activeUsers, newUsers]  → returning dihitung active - new
+    //   3) [activeUsers]            → pakai active = total, new 0
     if (String(action || "") === "users") {
-      const r = await analyticsdata.properties.runReport({
-        property: `properties/${propertyId}`,
-        requestBody: {
-          dateRanges: [{ startDate: startDate as string, endDate: endDate as string }],
-          metrics: [{ name: "totalUsers" }, { name: "newUsers" }, { name: "returningUsers" }],
-        },
-      });
-      const m = r.data?.rows?.[0]?.metricValues || [];
-      const total = Number(m[0]?.value || 0);
-      const fresh = Number(m[1]?.value || 0);
-      // returningUsers resmi tersedia utk GA4; fallback = total - new bila blank
-      const returning = m.length > 2 ? Number(m[2]?.value || 0) : Math.max(0, total - fresh);
+      const run = async (metrics: string[]) => {
+        const r = await analyticsdata.properties.runReport({
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [{ startDate: startDate as string, endDate: endDate as string }],
+            metrics: metrics.map((name) => ({ name })),
+          },
+        });
+        return r.data?.rows?.[0]?.metricValues || [];
+      };
+      const out = async (): Promise<{ total: number; fresh: number; returning: number }> => {
+        // 1 — seri penuh
+        try {
+          const m = await run(["totalUsers", "newUsers", "returningUsers"]);
+          if (m.length >= 3) {
+            const t = Number(m[0]?.value || 0), f = Number(m[1]?.value || 0);
+            return { total: t, fresh: f, returning: m[2]?.value ? Number(m[2].value) : Math.max(0, t - f) };
+          }
+        } catch { /* lanjut metode 2 */ }
+        // 2 — tanpa returningUsers (yang selama ini bikin error)
+        try {
+          const m = await run(["activeUsers", "newUsers"]);
+          if (m.length >= 2) {
+            const t = Number(m[0]?.value || 0), f = Number(m[1]?.value || 0);
+            return { total: t, fresh: f, returning: Math.max(0, t - f) };
+          }
+        } catch { /* lanjut metode 3 */ }
+        // 3 — terakhir: hitung total saja (new 0, returning = total utk tampilan aman)
+        const m = await run(["activeUsers"]);
+        const t = Number(m[0]?.value || 0);
+        return { total: t, fresh: 0, returning: t };
+      };
+      const { total, fresh, returning } = await out();
       const returningPct = total > 0 ? (returning / total) * 100 : 0;
       return res.status(200).json({ totalUsers: total, newUsers: fresh, returningUsers: returning, returningPct });
     }

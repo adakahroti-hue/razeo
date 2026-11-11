@@ -178,7 +178,7 @@ export default function InsightTab({ loading, branded, users, error, brandedKeyw
       <p className="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-4">
         <span>Branding → Search Console, keyword dari Pengaturan &rarr; Pengaturan Event</span>
         <span className="text-gray-300">|</span>
-        <span>Returning User → GA4 (totalUsers, newUsers, returningUsers)</span>
+              <span>Returning User &rarr; GA4 (returningUsers; fallback kalau ditolak: activeUsers - newUsers)</span>
       </p>
     </motion.div>
   );
