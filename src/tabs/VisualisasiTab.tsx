@@ -91,6 +91,19 @@ function runLayout(nodes: GNode[]): Graph {
   let maxW = 0, maxRows = 0;
 
   const sortedRoleCols = [...slotsByRole.keys()].sort((x, y) => x - y);
+  // pre-kalkulasi subCount per role -> lebar blok role (mencegah sub-deret role A menabrak role B)
+  const subCountOf = new Map<number, number>();
+  for (const rc of sortedRoleCols) subCountOf.set(rc, Math.max(1, Math.ceil(slotsByRole.get(rc)!.length / SUB_MAX)));
+  // mulai x per role: desak ke kanan lebar total sub sebelumnya + lorong konstan
+  const colStart = new Map<number, number>();
+  let curX = PAD_X;
+  for (const rc of sortedRoleCols) {
+    const sc = subCountOf.get(rc)!;
+    const totalW = sc * W + (sc - 1) * SUB_GAP;
+    colStart.set(rc, curX);
+    curX += totalW + GX;
+  }
+
   for (const rc of sortedRoleCols) {
     const arr = slotsByRole.get(rc)!;
     // barycenter utk urut baris dlm role (jaga korelas anak-induk berdekatan)
@@ -106,7 +119,7 @@ function runLayout(nodes: GNode[]): Graph {
     const subCount = Math.max(1, Math.ceil(ordered.length / SUB_MAX));
     for (let b = 0; b < subCount; b++) {
       const slice = ordered.slice(b * SUB_MAX, (b + 1) * SUB_MAX);
-      const x0 = colX(rc) + b * (W + SUB_GAP);
+      const x0 = colStart.get(rc)! + b * (W + SUB_GAP);
       // header utk sub-deret pertama saja (sub samping tdk perlu label)
       colHeaders.push({
         x: x0, w: W,
@@ -129,10 +142,10 @@ function runLayout(nodes: GNode[]): Graph {
     const rc = roleCol[i];
     const b = slotSubOf.get(i) ?? 0;
     const r = slotRowOf.get(i) ?? 0;
-    pos.set(nodes[i].id, { x: colX(rc) + b * (W + SUB_GAP), y: rowY(r) });
+    pos.set(nodes[i].id, { x: (colStart.get(rc) ?? colX(rc)) + b * (W + SUB_GAP), y: rowY(r) });
   }
 
-  const width = Math.max(maxW, colX(sortedRoleCols[sortedRoleCols.length - 1]) + W + PAD_X);
+  const width = Math.max(maxW, curX - GX + PAD_X - PAD_X); // curX sudah termasuk lorong akhir
   const height = rowY(Math.max(1, maxRows) - 1) + H + PAD_BOT;
   if (sortedRoleCols.length) maxRows = maxRows; // no-op keep var used
 
