@@ -270,7 +270,12 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const kwMap = useMemo(() => keywordMap(items), [items]);
 
   // ===== EDIT POSISI (geser kotak bebas, tersimpan per project) =====
-  const [editMode, setEditMode] = useState(false);
+  // edit per KATEGORI: tiap grup punya tombol Edit Sendiri — tak lagi global
+  const [editMap, setEditMap] = useState<Record<string, boolean>>({});
+  const editRef = useRef(editMap); editRef.current = editMap;
+  const nEdit = Object.keys(editMap).filter((k) => editMap[k]).length;
+  const toggleEdit = (cat: string) => setEditMap((p) => ({ ...p, [cat]: !p[cat] }));
+  const finishAllEdit = () => setEditMap({});
   const [saving, setSaving] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   // fix = { kategori: { nodeId: {dx,dy} } } — offset dari posisi dasar layout
@@ -427,7 +432,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
     [groups, q]
   );
   const onBoxDown = (e: React.PointerEvent, cat: string, id: string) => {
-    if (!editMode) return;
+    if (!editRef.current[cat]) return; // kategori ini belum mode edit → abaikan
     e.preventDefault(); // jangan mulai select teks
     e.stopPropagation(); // jangan ikut pancing marquee/pan kanvas
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -453,7 +458,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   };
   const onBoxMove = (e: React.PointerEvent) => {
     const d = dragData.current;
-    if (!d || !editMode) return;
+    if (!d) return;
     const dx = Math.round(e.clientX - d.sx);
     const dy = Math.round(e.clientY - d.sy);
     if (!dx && !dy) return;
@@ -523,11 +528,16 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const [marqBox, setMarqBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   // Esc = lepas semua blok; keluar mode edit juga bersih
   useEffect(() => {
-    if (!editMode) { setSel({}); return; }
+    // kategori yg keluar mode edit → lepas pilihannya
+    setSel((prev) => {
+      const out: Record<string, string[]> = {}; let ch = false;
+      for (const k of Object.keys(prev)) { if (editMap[k]) out[k] = prev[k]; else ch = true; }
+      return ch ? out : prev;
+    });
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel({}); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editMode]);
+  }, [editMap]);
 
   const getFix = (cat: string, id: string) => fixes[cat]?.[id] || { dx: 0, dy: 0 };
   const setFix = (cat: string, id: string, dx: number, dy: number) => {
@@ -563,19 +573,15 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
           <span className="mx-1.5 text-gray-300">&bull;</span>
           Tautan: <b className="text-emerald-600">{totalChips}</b>
         </div>
-        <button
-          onClick={() => setEditMode(!editMode)}
-          className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors',
-            editMode
-              ? 'bg-emerald-600 border-emerald-600 text-white'
-              : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700'
-          )}
-          title={editMode ? 'Selesai & simpan posisi' : 'Masuk mode edit — geser kotak bebas'}
-        >
-          {editMode ? 'Selesai Edit' : 'Edit Posisi'}
-        </button>
-        {editMode && nSelAll() > 0 && (
+        {nEdit > 0 && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-emerald-50 border-emerald-200 text-emerald-700" title="Edit posisi hanya aktif per kategori">
+            ✏️ {nEdit} kategori sedang diedit
+            <button onClick={finishAllEdit} className="underline hover:text-emerald-900" title="Tutup semua mode edit sekaligus">
+              selesai semua
+            </button>
+          </span>
+        )}
+        {nEdit > 0 && nSelAll() > 0 && (
           <button
             onClick={() => setSel({})}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
@@ -613,11 +619,15 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
           const lay = open ? layouts[g.name] : null;
           const members = g.all.filter((x) => x.member);
           const linkedCount = members.filter((m) => m.outIds.length > 0).length;
+          const ed = editMap[g.name] === true; // mode edit KATEGORI INI
           return (
             <div key={g.name} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setOpenMap({ ...openMap, [g.name]: !open })}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50/60 transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenMap({ ...openMap, [g.name]: !open }); } }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50/60 transition-colors cursor-pointer"
                 aria-expanded={open}
               >
                 <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
@@ -628,16 +638,35 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                   {members.length} Article
                 </span>
                 <span className="shrink-0 text-[11px] text-gray-400 whitespace-nowrap">{linkedCount} with link</span>
-                <span className="ml-auto flex items-center gap-1.5 text-[11px] text-gray-400 whitespace-nowrap">
-                  Klik untuk tutup/buka
-                  <ChevronDown className={cn('w-4 h-4 text-gray-500 transition-transform', open ? '' : '-rotate-90')} />
+                {/* tombol Edit POSISI per kategori — tiap grup punya mode edit sendiri */}
+                <span
+                  className="ml-auto flex items-center gap-2.5 text-[11px] text-gray-400 whitespace-nowrap"
+                  onClick={(e) => e.stopPropagation()} /* jangan ikut buka/tutup kategori */
+                >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleEdit(g.name); }}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors',
+                      ed
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700'
+                    )}
+                    title={ed ? 'Selesai edit posisi kategori ini' : 'Masuk edit posisi — cuma kategori ini'}
+                  >
+                    {ed ? 'Selesai Edit' : 'Edit Posisi'}
+                  </button>
+                  <span className="hidden md:flex items-center gap-1.5">
+                    Klik untuk tutup/buka
+                    <ChevronDown className={cn('w-4 h-4 text-gray-500 transition-transform', open ? '' : '-rotate-90')} />
+                  </span>
+                  <ChevronDown className={cn('md:hidden w-4 h-4 text-gray-500 transition-transform', open ? '' : '-rotate-90')} />
                 </span>
-              </button>
+              </div>
 
               {open && (
                 <div className="border-t border-gray-100 bg-[#f6f7f9] overflow-auto px-3 py-3">
                   {/* mode edit: kanvas LUAS (ruang kosong utk geser bebas) + offset geser kanvas */}
-                  {editMode && (
+                  {ed && (
                     <div className="flex items-center gap-2 mb-2.5 text-[11px] font-bold text-emerald-700">
                       <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200">
                         ✋ Klik & tarik kotak untuk memindahkannya
@@ -674,7 +703,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                   <div
                     className="relative"
                     onPointerDown={(e) => {
-                      if (!editMode) return;
+                      if (!ed) return;
                       // cuma kalau klik di area kosong (bukan kotak)
                       if ((e.target as HTMLElement).closest('[data-node]')) return;
                       const r0 = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -691,14 +720,14 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                     }}
                     onPointerMove={(e) => {
                       const s2 = marquee.current;
-                      if (s2 && editMode) {
+                      if (s2 && ed) {
                         const r0 = (e.currentTarget as HTMLElement).getBoundingClientRect();
                         const x = e.clientX - r0.left, yy = e.clientY - r0.top;
                         setMarqBox({ x: Math.min(x, s2.sx), y: Math.min(yy, s2.sy), w: Math.abs(x - s2.sx), h: Math.abs(yy - s2.sy) });
                         return;
                       }
                       const p = panStart.current;
-                      if (!p || !editMode) return;
+                      if (!p || !ed) return;
                       setPans((prev) => ({ ...prev, [p.name]: { x: p.px + (e.clientX - p.x), y: p.py + (e.clientY - p.y) } }));
                     }}
                     onPointerUp={() => {
@@ -710,8 +739,8 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                         // klik tanpa geser = lepas semua blok kategori ini
                         if (box && box.w > 6 && box.h > 6) {
                           // transform: koordinat inner layar = kotak layar ditambah offset kanvas
-                          const ox = (editMode ? 300 : 0) + (pans[g.name]?.x || 0);
-                          const oy = (editMode ? 200 : 0) + (pans[g.name]?.y || 0);
+                          const ox = (ed ? 300 : 0) + (pans[g.name]?.x || 0);
+                          const oy = (ed ? 200 : 0) + (pans[g.name]?.y || 0);
                           const hit = g.all.filter((k) => {
                             const pt = lay!.pos.get(k.id);
                             if (!pt) return false;
@@ -729,19 +758,19 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                     }}
                     onPointerLeave={() => { panStart.current = null; }}
                     style={{
-                      width: Math.max(lay!.width, 520) + (editMode ? 600 : 0),
-                      height: Math.max(lay!.height, 140) + (editMode ? 400 : 0),
-                      paddingTop: editMode ? 200 : 0,
-                      paddingLeft: editMode ? 300 : 0,
-                      paddingRight: editMode ? 300 : 0,
-                      paddingBottom: editMode ? 200 : 0,
-                      cursor: editMode ? 'grab' : undefined,
-                      touchAction: editMode ? 'none' : undefined,
+                      width: Math.max(lay!.width, 520) + (ed ? 600 : 0),
+                      height: Math.max(lay!.height, 140) + (ed ? 400 : 0),
+                      paddingTop: ed ? 200 : 0,
+                      paddingLeft: ed ? 300 : 0,
+                      paddingRight: ed ? 300 : 0,
+                      paddingBottom: ed ? 200 : 0,
+                      cursor: ed ? 'grab' : undefined,
+                      touchAction: ed ? 'none' : undefined,
                     }}
                   >
                     <div
                       className="absolute"
-                      style={{ left: (editMode ? 300 : 0) + (pans[g.name]?.x || 0), top: (editMode ? 200 : 0) + (pans[g.name]?.y || 0), width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}
+                      style={{ left: (ed ? 300 : 0) + (pans[g.name]?.x || 0), top: (ed ? 200 : 0) + (pans[g.name]?.y || 0), width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}
                     >
 
                     <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
@@ -770,25 +799,25 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;
                       const cls = fillOf(k);
-                      const picking = editMode && dragId === k.id;
-                      const isSel = editMode && selOf(g.name).includes(k.id);
+                      const picking = ed && dragId === k.id;
+                      const isSel = ed && selOf(g.name).includes(k.id);
                       return (
                         <div
                           key={k.id}
                           data-node={k.id}
-                          title={editMode ? (isSel ? 'Kotak terpilih — seret utk memindah semua (Esc lepas)' : 'Tarik utk memindahkan · Shift+klik utk blok') : (k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`)}
+                          title={ed ? (isSel ? 'Kotak terpilih — seret utk memindah semua (Esc lepas)' : 'Tarik utk memindahkan · Shift+klik utk blok') : (k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`)}
                           onPointerDown={(e) => onBoxDown(e, g.name, k.id)}
                           onPointerMove={onBoxMove}
                           onPointerUp={onBoxUp}
                           onPointerCancel={onBoxUp}
                           className={cn(
                             'absolute rounded-[10px] px-2.5 flex items-center text-[12px] font-semibold text-center justify-center leading-tight shadow-[0_1px_3px_rgba(15,23,42,0.10)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition',
-                            editMode && 'ring-2 ring-white cursor-grab active:cursor-grabbing shadow-[0_4px_12px_rgba(15,23,42,0.20)] z-10',
+                            ed && 'ring-2 ring-white cursor-grab active:cursor-grabbing shadow-[0_4px_12px_rgba(15,23,42,0.20)] z-10',
                             picking && 'scale-[1.03] ring-emerald-400',
                             isSel && !picking && 'ring-2 ring-amber-400 ring-offset-1 z-10 shadow-[0_4px_12px_rgba(15,23,42,0.18)]',
                             cls
                           )}
-                          style={{ left: p.x, top: p.y, width: W, height: H, touchAction: editMode ? 'none' : undefined }}
+                          style={{ left: p.x, top: p.y, width: W, height: H, touchAction: ed ? 'none' : undefined }}
                         >
                           <span className="line-clamp-2 break-words text-center">{k.kw}</span>
                         </div>
