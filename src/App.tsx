@@ -3236,7 +3236,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           )}
           {currentTab === 'visualisasi' && (
             <div key="visualisasi">
-              <LazyVisualisasiTab loading={contentLoading} items={contentItems} authHeaders={getAuthHeaders} />
+              <LazyVisualisasiTab loading={contentLoading} items={contentItems} prodItems={productItems} authHeaders={getAuthHeaders} />
             </div>
           )}
           {currentTab === 'task' && (

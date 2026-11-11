@@ -3,11 +3,13 @@ import { motion } from 'motion/react';
 import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, MousePointerClick, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ContentItem } from './KontenTab';
-import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
+import { keywordMap, urlToKeyword, normUrl } from '../lib/resolveKeyword';
 
 type Props = {
   loading: boolean;
   items: ContentItem[];
+  /** daftar produk (tabel products via tab konten sub Produk) — utk bhkn kolom PRODUK */
+  prodItems?: { nama_produk?: string | null; judul_produk?: string | null; link_shopee?: string | null; link_artikel?: string | null; kategori?: string | null }[];
   /** header auth (dari App) utk load/simpan posisi flowchart ke server */
   authHeaders?: () => Promise<Record<string, string>>;
 };
@@ -266,9 +268,22 @@ type Group = { name: string; all: GNode[] };
 // READ-ONLY: tab ini HANYA menampilkan ringkasan visual dari tab Konten.
 // Kontrak: jangan menambahkan tombol tambah/ubah/hapus, form, atau callback tulis (onAdd/onUpdate/onDelete).
 // Sumber data = contentItems tab Konten (di App), disaring tampilan oleh state lokal (cari/buka-tutup) saja.
-export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
+export default function VisualisasiTab({ loading, items, prodItems, authHeaders }: Props) {
   const [q, setQ] = useState('');
   const kwMap = useMemo(() => keywordMap(items), [items]);
+  // map URL (normUrl) -> nama produk ASLI dari tabel products — hanya ini boleh jd kotak PRODUK
+  const prodUrlMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of prodItems || []) {
+      const nama = (p.nama_produk || '').trim();
+      if (!nama) continue;
+      for (const u of [p.link_shopee, p.link_artikel]) {
+        const k = normUrl(u);
+        if (k) m.set(k, nama);
+      }
+    }
+    return m;
+  }, [prodItems]);
 
   // ===== EDIT POSISI (geser kotak bebas, tersimpan per project) =====
   // edit per KATEGORI: tiap grup punya tombol Edit Sendiri — tak lagi global
@@ -373,9 +388,17 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
         if (targetId && targetId !== src.id) {
           tid = targetId; // asli — ghost lokal dibuat saat penggabungan grup bila beda kategori
         } else {
-          tid = phantom(lowered, kwText).id; // halaman produk / URL luar daftar -> kolom klik PRODUK (colOverride)
-          const p = probePhantom.get('x:' + lowered);
-          if (p) p.colOverride = PRODUK_COL;
+          // URL luar daftar artikel: cocokan dgn data produk dulu
+          const prodName = prodUrlMap.get(normUrl(u));
+          if (prodName) {
+            // ada di tabel products -> kolom PRODUK (label = nama produk asli)
+            tid = phantom(lowered, prodName).id;
+            const p = probePhantom.get('x:' + lowered);
+            if (p) { p.colOverride = PRODUK_COL; p.kw = prodName; }
+          } else {
+            // TIDAK tercatat sbg produk -> tampil sbg tujuan internal link biasa (dashed, kolom LAINNYA)
+            tid = phantom(lowered, kwText).id;
+          }
         }
         if (!src.outIds.includes(tid)) src.outIds.push(tid);
       }
