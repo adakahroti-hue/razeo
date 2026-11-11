@@ -430,11 +430,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "events-get") {
         const info = await requireProject(user.uid, req);
         if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from("project_events")
           .select("scroll25, scroll50, scroll75, ctas, branded_keywords, updated_at")
           .eq("project_id", info.projectId)
           .maybeSingle();
+        if (error && (error.code === "PGRST205" || error.code === "42703")) {
+          // kolom branded_keywords belum ada (migrasi 0012 belum jalan) → baca kolom lama saja
+          const r = await supabase
+            .from("project_events")
+            .select("scroll25, scroll50, scroll75, ctas, updated_at")
+            .eq("project_id", info.projectId)
+            .maybeSingle();
+          data = r.data ? { ...r.data, branded_keywords: [] } : null;
+          error = r.error;
+        }
         if (error) {
           if (String(error.message).includes("schema cache") || error.code === "42P01" || error.code === "PGRST205")
             return res.status(200).json({ events: null, needsMigration: "jalankan migrasi SQL 0007 di Supabase" });
@@ -470,6 +480,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .upsert(row, { onConflict: "project_id" })
           .select("scroll25, scroll50, scroll75, ctas, branded_keywords, updated_at")
           .single();
+        if (error && error.code === "42703") {
+          // kolom branded_keywords belum ada → simpan konfigurasi event lama saja
+          const { branded_keywords: _drop, ...rest } = row as any;
+          const retry = await supabase
+            .from("project_events")
+            .upsert(rest, { onConflict: "project_id" })
+            .select("scroll25, scroll50, scroll75, ctas, updated_at")
+            .single();
+          if (retry.error) throw retry.error;
+          return res.status(200).json({ events: { ...retry.data, branded_keywords: [] }, needsMigration: "jalankan migrasi SQL 0012_branded_keywords di Supabase untuk menyimpan keyword branded" });
+        }
         if (error) {
           if (String(error.message).includes("relation") || error.code === "42P01")
             return res.status(500).json({ error: "Tabel project_events belum ada — jalankan migrasi SQL 0007 di Supabase" });
