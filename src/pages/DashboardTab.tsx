@@ -472,8 +472,10 @@ export default function DashboardTab({
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full">
-                      {auditRole === 'inspect' ? "All Pages" : "Role Filter"}
+                    <div className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-gray-100 text-gray-500">
+                      {auditRole === 'inspect'
+                        ? 'All Pages'
+                        : `Filter: ${AUDIT_ROLES.find((r: any) => r.id === auditRole)?.label || auditRole}`}
                     </div>
                     {auditTab === 'enrichment' && (
                       <button
