@@ -429,16 +429,39 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const onBoxDown = (e: React.PointerEvent, cat: string, id: string) => {
     if (!editMode) return;
     e.preventDefault(); // jangan mulai select teks
+    e.stopPropagation(); // jangan ikut pancing marquee/pan kanvas
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    dragData.current = { id, cat, sx: e.clientX, sy: e.clientY, base: getFix(cat, id) };
+
+    let ids: string[];
+    if (e.shiftKey) {
+      // Shift+klik = blok: akumulasi pilihan tanpa drag
+      toggleSel(cat, id);
+      const cur = sel[cat] || [];
+      ids = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      return; // jangan mulai drag — biarkan Shift+klik murni seleksi
+    } else if (nSel(cat) > 0 && sel[cat]?.includes(id)) {
+      ids = sel[cat]!; // seret salah satu kotak terpilih → selector semua ikut
+    } else {
+      ids = [id]; // klik biasa: cuma kotak ini
+    }
+
+    // rekam offset DASAR tiap id agar kumpulan pindah serempak (geser identik)
+    const moves: Record<string, { dx: number; dy: number }> = {};
+    for (const i of ids) moves[i] = getFix(cat, i);
+    dragData.current = { ids, moves, cat, sx: e.clientX, sy: e.clientY };
     setDragId(id);
   };
   const onBoxMove = (e: React.PointerEvent) => {
     const d = dragData.current;
     if (!d || !editMode) return;
-    const nx = d.base.dx + (e.clientX - d.sx);
-    const ny = d.base.dy + (e.clientY - d.sy);
-    setFix(d.cat, d.id, Math.round(nx), Math.round(ny));
+    const dx = Math.round(e.clientX - d.sx);
+    const dy = Math.round(e.clientY - d.sy);
+    if (!dx && !dy) return;
+    // terapkan delta YG SAMA ke seluruh id terpilih → posisi relatif antar kotak tetap
+    for (const id of d.ids) {
+      const b = d.moves[id];
+      setFix(d.cat, id, b.dx + dx, b.dy + dy);
+    }
   };
   const onBoxUp = () => {
     if (dragData.current) {
@@ -470,7 +493,41 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const panStart = useRef<{ x: number; y: number; px: number; py: number; name: string } | null>(null);
 
   // alur drag per KOTAK: geser bebas di seluruh kanvas = ubah offset (dx,dy)
-  const dragData = useRef<{ id: string; cat: string; sx: number; sy: number; base: { dx: number; dy: number } } | null>(null);
+  // dragData skrg MENAMPUNG beberapa id (blok) → seret satu kotak terpilih = semua ikut
+  const dragData = useRef<{ ids: string[]; moves: Record<string, { dx: number; dy: number }>; cat: string; sx: number; sy: number } | null>(null);
+
+  // ===== BLOK & SERET: pilihan multi per kategori =====
+  // sel = { kategori: [idKotak] } — diisi lewat Shift+klik / blok area (Shift+seret di area kosong)
+  const [sel, setSel] = useState<Record<string, string[]>>({});
+  const nSel = (cat: string): number => (sel[cat] || []).length;
+  const nSelAll = (): number => Object.keys(sel).reduce((t: number, k) => t + (sel[k] || []).length, 0);
+  const selOf = (cat: string): string[] => sel[cat] || [];
+  const toggleSel = (cat: string, id: string): void => {
+    setSel((prev) => {
+      const cur = prev[cat] || [];
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      const out = { ...prev };
+      if (next.length) out[cat] = next; else delete out[cat];
+      return out;
+    });
+  };
+  const setSelCat = (cat: string, ids: string[]) => {
+    setSel((prev) => {
+      const out = { ...prev };
+      if (ids.length) out[cat] = ids; else delete out[cat];
+      return out;
+    });
+  };
+  // Shift+di area kosong = blok persegi (rubber band), ukuran dlm koordinat LAYAR
+  const marquee = useRef<{ cat: string; sx: number; sy: number } | null>(null);
+  const [marqBox, setMarqBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Esc = lepas semua blok; keluar mode edit juga bersih
+  useEffect(() => {
+    if (!editMode) { setSel({}); return; }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel({}); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editMode]);
 
   const getFix = (cat: string, id: string) => fixes[cat]?.[id] || { dx: 0, dy: 0 };
   const setFix = (cat: string, id: string, dx: number, dy: number) => {
@@ -518,6 +575,15 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
         >
           {editMode ? 'Selesai Edit' : 'Edit Posisi'}
         </button>
+        {editMode && nSelAll() > 0 && (
+          <button
+            onClick={() => setSel({})}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+            title="Lepas semua blok yang dipilih"
+          >
+            🧱 {nSelAll()} terpilih — lepas
+          </button>
+        )}
         <button
           onClick={toggleAll}
           className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:border-emerald-300"
@@ -577,6 +643,19 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                         ✋ Klik & tarik kotak untuk memindahkannya
                       </span>
                       <span className="hidden sm:inline text-gray-400 font-medium">geser area abu-abu = geser seluruh tampilan</span>
+                      <span className="hidden md:inline text-gray-400 font-medium">Shift+klik / Shift+blok area = pilih banyak, lalu seret</span>
+                      {nSel(g.name) > 0 && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700">
+                          🧱 {nSel(g.name)} kotak terpilih
+                          <button
+                            onClick={() => setSelCat(g.name, [])}
+                            className="underline hover:text-amber-900"
+                            title="Lepas semua blok (Esc)"
+                          >
+                            lepas
+                          </button>
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           const next = { ...fixRef.current };
@@ -598,14 +677,56 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       if (!editMode) return;
                       // cuma kalau klik di area kosong (bukan kotak)
                       if ((e.target as HTMLElement).closest('[data-node]')) return;
+                      const r0 = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      if (e.shiftKey) {
+                        // Shift+seret area kosong = BLOK persegi (rubber band)
+                        e.preventDefault();
+                        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                        marquee.current = { cat: g.name, sx: e.clientX - r0.left, sy: e.clientY - r0.top };
+                        setMarqBox({ x: marquee.current.sx, y: marquee.current.sy, w: 0, h: 0 });
+                        panStart.current = null;
+                        return;
+                      }
                       panStart.current = { x: e.clientX, y: e.clientY, px: (pans[g.name]?.x || 0), py: (pans[g.name]?.y || 0), name: g.name };
                     }}
                     onPointerMove={(e) => {
+                      const s2 = marquee.current;
+                      if (s2 && editMode) {
+                        const r0 = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const x = e.clientX - r0.left, yy = e.clientY - r0.top;
+                        setMarqBox({ x: Math.min(x, s2.sx), y: Math.min(yy, s2.sy), w: Math.abs(x - s2.sx), h: Math.abs(yy - s2.sy) });
+                        return;
+                      }
                       const p = panStart.current;
                       if (!p || !editMode) return;
                       setPans((prev) => ({ ...prev, [p.name]: { x: p.px + (e.clientX - p.x), y: p.py + (e.clientY - p.y) } }));
                     }}
-                    onPointerUp={() => { panStart.current = null; }}
+                    onPointerUp={() => {
+                      const m = marquee.current;
+                      if (m) {
+                        const box = marqBox;
+                        marquee.current = null;
+                        setMarqBox(null);
+                        // klik tanpa geser = lepas semua blok kategori ini
+                        if (box && box.w > 6 && box.h > 6) {
+                          // transform: koordinat inner layar = kotak layar ditambah offset kanvas
+                          const ox = (editMode ? 300 : 0) + (pans[g.name]?.x || 0);
+                          const oy = (editMode ? 200 : 0) + (pans[g.name]?.y || 0);
+                          const hit = g.all.filter((k) => {
+                            const pt = lay!.pos.get(k.id);
+                            if (!pt) return false;
+                            const x = pt.x + ox, y = pt.y + oy; // ke ruang kanvas luar
+                            return x < box.x + box.w && x + W > box.x && y < box.y + box.h && y + H > box.y;
+                          }).map((k) => k.id);
+                          setSelCat(g.name, hit);
+                        } else {
+                          setSelCat(g.name, []);
+                        }
+                        panStart.current = null;
+                        return;
+                      }
+                      panStart.current = null;
+                    }}
                     onPointerLeave={() => { panStart.current = null; }}
                     style={{
                       width: Math.max(lay!.width, 520) + (editMode ? 600 : 0),
@@ -622,6 +743,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       className="absolute"
                       style={{ left: (editMode ? 300 : 0) + (pans[g.name]?.x || 0), top: (editMode ? 200 : 0) + (pans[g.name]?.y || 0), width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}
                     >
+
                     <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
                       <defs>
                         <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -649,11 +771,12 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       if (!p) return null;
                       const cls = fillOf(k);
                       const picking = editMode && dragId === k.id;
+                      const isSel = editMode && selOf(g.name).includes(k.id);
                       return (
                         <div
                           key={k.id}
                           data-node={k.id}
-                          title={editMode ? 'Tarik untuk memindahkan' : (k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`)}
+                          title={editMode ? (isSel ? 'Kotak terpilih — seret utk memindah semua (Esc lepas)' : 'Tarik utk memindahkan · Shift+klik utk blok') : (k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`)}
                           onPointerDown={(e) => onBoxDown(e, g.name, k.id)}
                           onPointerMove={onBoxMove}
                           onPointerUp={onBoxUp}
@@ -662,6 +785,7 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                             'absolute rounded-[10px] px-2.5 flex items-center text-[12px] font-semibold text-center justify-center leading-tight shadow-[0_1px_3px_rgba(15,23,42,0.10)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition',
                             editMode && 'ring-2 ring-white cursor-grab active:cursor-grabbing shadow-[0_4px_12px_rgba(15,23,42,0.20)] z-10',
                             picking && 'scale-[1.03] ring-emerald-400',
+                            isSel && !picking && 'ring-2 ring-amber-400 ring-offset-1 z-10 shadow-[0_4px_12px_rgba(15,23,42,0.18)]',
                             cls
                           )}
                           style={{ left: p.x, top: p.y, width: W, height: H, touchAction: editMode ? 'none' : undefined }}
@@ -671,6 +795,13 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                       );
                     })}
                     </div>
+                    {marqBox && (
+                      <div
+                        aria-hidden
+                        className="absolute border-2 border-dashed border-emerald-500 bg-emerald-400/15 rounded-md pointer-events-none z-20"
+                        style={{ left: marqBox.x, top: marqBox.y, width: marqBox.w, height: marqBox.h }}
+                      />
+                    )}
                   </div>
                 </div>
               )}
