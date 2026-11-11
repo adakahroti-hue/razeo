@@ -104,13 +104,22 @@ const loadPdfKit = () =>
   ]).then(([j, a]) => ({ jsPDF: (j as any).jsPDF, autoTable: (a as any).default })));
 
 // Daftar modul audit — dipakai sidebar kategori & badge judul kartu
-const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean }> = [
+type AuditRole = 'inspect' | 'inspire' | 'educate' | 'convert';
+// pemilih kategori peran (sub tab atas tab Optimasi) — audit dibagi per role konten
+const AUDIT_ROLES: Array<{ id: AuditRole; label: string }> = [
+  { id: 'inspire', label: 'Inspire' },
+  { id: 'educate', label: 'Educate' },
+  { id: 'convert', label: 'Convert' },
+  { id: 'inspect', label: 'Semua' },
+];
+
+const AUDIT_TABS: Array<{ id: string; label: string; icon: any }> = [
   { id: 'ctr', label: 'CTR Analysis', icon: MousePointer2 },
   { id: 'lhf', label: 'Low Hanging Fruit', icon: Target },
   { id: 'declining', label: 'Declining', icon: TrendingUp },
   { id: 'zero', label: 'Zero Traffic', icon: AlertCircle },
   { id: 'enrichment', label: 'Enrichment', icon: Target },
-  { id: 'ai', label: 'AI Search', icon: Search, isNew: true },
+  { id: 'ai', label: 'AI Search', icon: Search },
   { id: 'consolidation', label: 'Consolidation', icon: Filter },
   { id: 'scroll', label: 'Scroll Optimization', icon: TrendingUp },
   { id: 'er', label: 'ER Optimization', icon: BarChart3 },
@@ -257,7 +266,23 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCtrPosition, setSelectedCtrPosition] = useState<number | null>(null);
   const [selectedCtrPage, setSelectedCtrPage] = useState<string | null>(null);
-  const [excludeProduk, setExcludeProduk] = useState(false);
+  const [auditRole, setAuditRole] = useState<AuditRole>('inspect'); // inspect = semua role
+  // aturan: 'inspire'/'educate' hanya halaman non-produk; 'convert' hanya /produk/; 'inspect' semua
+  const inRole = (page: string): boolean => {
+    const isProduk = page.includes('/produk/');
+    if (auditRole === 'inspire' || auditRole === 'educate') return !isProduk;
+    if (auditRole === 'convert') return isProduk;
+    return true;
+  };
+  // saat role berubah, subtab ER/CTA menyesuaikan isi role-nya
+  // (convert = halaman produk → pakai subtab 'product'; lainnya → 'article')
+  useEffect(() => {
+    if (auditRole === 'convert') {
+      setErSubTab('product'); setCtaSubTab('product');
+    } else {
+      setErSubTab('article'); setCtaSubTab('article');
+    }
+  }, [auditRole]);
   const [expandedDecliningPage, setExpandedDecliningPage] = useState<string | null>(null);
   const [expandedEnrichmentPage, setExpandedEnrichmentPage] = useState<string | null>(null);
   const [expandedZeroPage, setExpandedZeroPage] = useState<string | null>(null);
@@ -794,7 +819,7 @@ export default function App() {
     const pageGroups = new Map<string, { clicks: number, impressions: number, topQuery: string, queryCount: number }>();
     data.forEach(row => {
       const page = row.keys[1] || '';
-      if (excludeProduk && page.includes('/produk/')) return;
+      if (!inRole(page)) return;
       
       if (Math.round(row.position) === position) {
         if (!pageGroups.has(page)) {
@@ -874,7 +899,7 @@ export default function App() {
     activeData.forEach(row => {
       const page = row.keys[1];
       if (!page) return;
-      if (excludeProduk && page.includes('/produk/')) return;
+      if (!inRole(page)) return;
       
       const pos = Math.round(row.position);
       if (pos >= 1 && pos <= 10) {
@@ -2110,7 +2135,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
         activeData.forEach(row => {
           const page = row.keys[1];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           
           if (!pageGroups.has(page)) {
             pageGroups.set(page, { clicks: [], impressions: [], ctr: [], position: [], hasLowPosQuery: false, queries: new Set() });
@@ -2175,7 +2200,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           const page = row.keys[1];
           const query = row.keys[0];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           if (lhfPagesForZero.has(page)) return; // EXCLUDE LHF PAGES
           
           if (!zeroPageGroups.has(page)) {
@@ -2230,7 +2255,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
         activeData.forEach(row => {
           const page = row.keys[1];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           if (getSlug(page) === '/') return;
           if (lhfPages.has(page)) return; // EXCLUDE LHF PAGES
           
@@ -2278,7 +2303,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           const page = row.keys[1];
           const query = row.keys[0];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           
           if (!aiPageGroups.has(page)) {
             aiPageGroups.set(page, { clicks: [], impressions: [], ctr: [], position: [], hasQuestion: false });
@@ -2318,7 +2343,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           const page = row.keys[1];
           const query = row.keys[0];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           
           if (!currentPages.has(page)) {
             currentPages.set(page, { clicks: [], impressions: [], ctr: [], position: [], queries: new Map() });
@@ -2406,7 +2431,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           const q = row.keys[0];
           const p = row.keys[1];
           if (!q || !p) return;
-          if (excludeProduk && p.includes('/produk/')) return;
+          if (!inRole(p)) return;
 
           if (!queryGroups.has(q)) {
             queryGroups.set(q, { clicks: 0, impressions: 0, ctr: [], position: [], pages: [] });
@@ -2440,7 +2465,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
         activeData.forEach(row => {
           const page = row.keys[1];
           if (!page || page.includes('#')) return;
-          if (excludeProduk && page.includes('/produk/')) return;
+          if (!inRole(page)) return;
           
           if (!scrollPageGroups.has(page)) {
             scrollPageGroups.set(page, { clicks: [], impressions: [], ctr: [], position: [], queries: new Set() });
@@ -2505,10 +2530,9 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           
           // Filter based on sub-tab
           const isProduk = page.includes('/produk/');
+          if (!inRole(page)) return;
           if (erSubTab === 'article' && isProduk) return;
           if (erSubTab === 'product' && !isProduk) return;
-          
-          if (excludeProduk && isProduk) return;
           
           if (!erPageGroups.has(page)) {
             erPageGroups.set(page, { clicks: [], impressions: [], ctr: [], position: [], queries: new Set() });
@@ -2565,10 +2589,9 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           if (!page || page.includes('#')) return;
           
           const isProduk = page.includes('/produk/');
+          if (!inRole(page)) return;
           if (ctaSubTab === 'article' && isProduk) return;
           if (ctaSubTab === 'product' && !isProduk) return;
-          
-          if (excludeProduk && isProduk) return;
           
           if (!ctaPageGroups.has(page)) {
             ctaPageGroups.set(page, { clicks: [], impressions: [], ctr: [], position: [], queries: new Set() });
@@ -2633,7 +2656,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
 
     activeData.forEach(row => {
       const page = row.keys[1] || '';
-      if (excludeProduk && page.includes('/produk/')) return;
+      if (!inRole(page)) return;
       
       const pos = Math.round(row.position);
       if (pos >= 1 && pos <= 10) {
@@ -3268,7 +3291,9 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
             erSubTab={erSubTab}
             error={error}
             evKey={evKey}
-            excludeProduk={excludeProduk}
+            auditRole={auditRole}
+            setAuditRole={setAuditRole}
+            AUDIT_ROLES={AUDIT_ROLES}
             expandedAiPage={expandedAiPage}
             expandedConsolidationQuery={expandedConsolidationQuery}
             expandedDecliningPage={expandedDecliningPage}
@@ -3292,7 +3317,6 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
             setEnrichmentSort={setEnrichmentSort}
             setErSort={setErSort}
             setErSubTab={setErSubTab}
-            setExcludeProduk={setExcludeProduk}
             setExpandedAiPage={setExpandedAiPage}
             setExpandedConsolidationQuery={setExpandedConsolidationQuery}
             setExpandedDecliningPage={setExpandedDecliningPage}

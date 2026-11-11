@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link2, Plus, RefreshCw, Save, Tag, Trash2, X, CalendarDays, User, Pencil, Folder, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink, FileCode } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -79,6 +79,28 @@ const sanitizeHtml = (html: string): string =>
     .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
     .replace(/(href|src)\s*=\s*("|')?\s*javascript:[^"'>\s]*/gi, '$1="#"');
 
+// teks HTML -> teks biasa utk hitung: kata + keyword tertulis asli (tanpa tag⑈attribute)
+const htmlToText = (html: string): string =>
+  (html || '')
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&/gi, '&')
+    .replace(/</gi, '<')
+    .replace(/>/gi, '>')
+    .replace(/"/gi, '"')
+    .replace(/'|&apos;/gi, "'")
+    .replace(/&#\d+;/g, ' ');
+
+// tandai SEMUA kemunculan keyword (case-insensitive) pakai regex-escaping aman
+const highlightKeyword = (html: string, kw: string): string => {
+  const q = (kw || '').trim();
+  if (!q) return html;
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return (html || '').replace(new RegExp(`(${esc})`, 'gi'), '<mark class="kwhl">$1</mark>');
+};
+
 // internal_link: teks satu URL per baris (atau dipisah koma) -> daftar
 const splitLinks = (v: string | null): string[] =>
   (v || '').split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
@@ -89,6 +111,9 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
   const [busy, setBusy] = useState(false);
   // popup preview isi artikel (render HTML)
   const [preview, setPreview] = useState<ContentItem | null>(null);
+  // opsi: highlight keyword utama di dalam preview + statistik kata/keyword
+  const [kwHl, setKwHl] = useState(false);
+  useEffect(() => { if (preview) { setKwHl(false); } }, [preview]);
   // URL internal -> kata kunci tujuan (tampilan kolom & diagram)
   const kwMap = keywordMap(items);
   // ===== toolbar: cari, filter, urut, statistik, tutup semua =====
@@ -389,47 +414,94 @@ export default function KontenTab({ loading, items, onAdd, onUpdate, onDelete, p
       )}
       </React.Fragment>
 
-      {/* ===== POPUP PREVIEW isi artikel (render HTML mode WordPress) ===== */}
+      {/* ===== POPUP PREVIEW isi artikel: statistik jumlah kata & keyword utama + highlight ===== */}
       <AnimatePresence>
-        {preview && (
-          <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={() => setPreview(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ duration: 0.18 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-5 max-h-[92vh] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-gray-400">
-                    <FileCode className="w-3.5 h-3.5" /> Isi Artikel (HTML)
+        {preview && (() => {
+          const rawHtml = preview.isi_artikel || '';
+          const plain = htmlToText(rawHtml);
+          const kata = (plain.match(/[A-Za-z0-9À-ÿ]+(?:['\-][A-Za-z0-9À-ÿ]+)*/g) || []).length;
+          const kwUtama = (preview.target_keyword || '').trim();
+          const jumlahKeyword = kwUtama && plain.toLowerCase().includes(kwUtama.toLowerCase()) ? 1 : 0;
+          const renderHtml = kwHl ? highlightKeyword(sanitizeHtml(rawHtml), kwUtama) : sanitizeHtml(rawHtml);
+          return (
+            <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={() => setPreview(null)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ duration: 0.18 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-5 max-h-[92vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <style>{`.kwhl{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700;color:#111827;box-decoration-break:clone;-webkit-box-decoration-break:clone}`}</style>
+
+                <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-base text-gray-900 leading-snug">{preview.judul}</h3>
+
+                    {/* statistik ringkas: jumlah kata + jumlah keyword utama yg disebut */}
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                        <FileCode className="w-3.5 h-3.5" /> {kata.toLocaleString('id-ID')} kata
+                      </span>
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border",
+                        jumlahKeyword
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                          : "bg-gray-50 text-gray-500 border-gray-100"
+                      )}>
+                        <Tag className="w-3.5 h-3.5" /> {jumlahKeyword} Keyword utama
+                      </span>
+                      {kwUtama && (
+                        <span className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-500" title="Keyword utama artikel">
+                          <b className="text-gray-800">{kwUtama}</b>
+                        </span>
+                      )}
+
+                      {/* opsi perlihatkan / highlight keyword utama di artikel */}
+                      <label className="ml-auto flex items-center gap-2.5 cursor-pointer group select-none px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50">
+                        <div
+                          onClick={() => setKwHl(!kwHl)}
+                          className={cn(
+                            "w-9 h-5 rounded-full transition-all relative shadow-inner shrink-0",
+                            kwHl ? "bg-amber-500" : "bg-gray-200"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-1 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
+                            kwHl ? "left-5" : "left-1"
+                          )} />
+                        </div>
+                        <span className={cn(
+                          "text-xs font-bold transition-colors whitespace-nowrap",
+                          kwHl ? "text-amber-700" : "text-gray-600 group-hover:text-gray-900"
+                        )}>
+                          Perlihatkan keyword
+                        </span>
+                      </label>
+                    </div>
                   </div>
-                  <h3 className="font-bold text-base text-gray-900 mt-1 leading-snug">{preview.judul}</h3>
+
+                  <button onClick={() => setPreview(null)} title="Tutup" aria-label="Tutup" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-100 shrink-0 self-start">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button onClick={() => setPreview(null)} title="Tutup" aria-label="Tutup" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              {/* area baca Artikel: lebar nyaman + tipografi panjang (nyaris mirip halaman post WordPress) */}
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100 bg-white">
-                {preview.isi_artikel ? (
-                  <article
-                    className="wp-article mx-auto w-full max-w-3xl px-6 py-7 text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview.isi_artikel) }}
-                  />
-                ) : (
-                  <p className="p-6 text-sm text-gray-400">Belum ada isi artikel untuk konten ini. Klik ✏️ Ubah lalu tempel HTML-nya.</p>
-                )}
-              </div>
-              <div className="mt-3 text-[11px] text-gray-400 shrink-0 flex items-center justify-between">
-                <span>Viewer HTML — heading bawaan kode tetap tampil seperti aslinya</span>
-                <span>{(preview.isi_artikel || '').length.toLocaleString('id-ID')} karakter</span>
-              </div>
-            </motion.div>
-          </div>
-        )}
+
+                {/* area baca Artikel: lebar nyaman + tipografi panjang (nyaris mirip halaman post WordPress) */}
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100 bg-white">
+                  {rawHtml ? (
+                    <article
+                      className="wp-article mx-auto w-full max-w-3xl px-6 py-7 text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: renderHtml }}
+                    />
+                  ) : (
+                    <p className="p-6 text-sm text-gray-400">Belum ada isi artikel untuk konten ini. Klik ✏️ Ubah lalu tempel HTML-nya.</p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ===== POPUP FORM: tambah / edit ===== */}
