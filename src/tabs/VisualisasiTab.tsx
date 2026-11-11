@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, MousePointerClick } from 'lucide-react';
+import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, MousePointerClick, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ContentItem } from './KontenTab';
 import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
@@ -67,7 +67,7 @@ const midY = (r: number) => rowY(r) + H / 2;
 
 type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[]; colOverride?: number };
 type Box = { x: number; y: number };
-type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[]; pairs?: { src: string; dst: string }[] };
+type Graph = { pos: Map<string, Box>; edges: { d: string; black?: boolean }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[]; pairs?: { src: string; dst: string; black?: boolean }[] };
 
 // ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
 function runLayout(nodes: GNode[]): Graph {
@@ -213,8 +213,9 @@ function runLayout(nodes: GNode[]): Graph {
           `V ${y1 - R} Q ${gQ} ${y1}, ${gQ + R} ${y1} ` +
           `H ${x1}`;
       }
-      edges.push({ d });
-      pairs.push({ src: nodes[a].id, dst: nodes[b].id });
+      const black = roleCol[a] === ROLE_RANK.educate && (roleCol[b] === PRODUK_COL || nodes[b].colOverride === PRODUK_COL);
+      edges.push({ d, ...(black ? { black: true } : {}) });
+      pairs.push({ src: nodes[a].id, dst: nodes[b].id, ...(black ? { black: true } : {}) });
     }
   }
 
@@ -235,7 +236,7 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
     maxR = Math.max(maxR, x + W + PAD_X);
     maxB = Math.max(maxB, y + H + PAD_BOT);
   }
-  const edges: { d: string }[] = [];
+  const edges: { d: string; black?: boolean }[] = [];
   for (const pr of base.pairs || []) {
     const pa = pos.get(pr.src), pb = pos.get(pr.dst);
     if (!pa || !pb) continue;
@@ -255,7 +256,7 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
         `H ${x1 + 12} Q ${x1} ${lane}, ${x1} ${lane + 12} ` +
         `V ${y1 - 12} Q ${x1} ${y1}, ${x1 - 10} ${y1} H ${x1}`;
     }
-    edges.push({ d });
+    edges.push(pr.black ? { d, black: true } : { d });
   }
   return { ...base, pos, edges, width: Math.max(base.width, maxR), height: Math.max(base.height, maxB) };
 }
@@ -471,8 +472,9 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const onBoxMove = (e: React.PointerEvent) => {
     const d = dragData.current;
     if (!d) return;
-    const dx = Math.round(e.clientX - d.sx);
-    const dy = Math.round(e.clientY - d.sy);
+    const z = zoomRef.current || 1;
+    const dx = Math.round((e.clientX - d.sx) / z);
+    const dy = Math.round((e.clientY - d.sy) / z);
     if (!dx && !dy) return;
     if (pending.current) pending.current.moved = true;
     // terapkan delta YG SAMA ke seluruh id terpilih → posisi relatif antar kotak tetap
@@ -548,6 +550,18 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   // ON  → klik kotak = pilih/batal pilih (bukan lgsg geser), seret kotak terpilih = pindahkan blok,
   //       seret area kosong = blok persegi (tanpa Shift). Kanvas hanya bisa digeser saat mode OFF.
   const [selectMode, setSelectMode] = useState(false);
+  // ===== ZOOM CANVAS (utk semua kategori) =====
+  const [zoom, setZoom] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem('vhviz.zoom')); if (v && v >= 0.35 && v <= 3) return v; } catch { /* abaikan */ }
+    return 1;
+  });
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const applyZoom = (v: number) => {
+    const z = Math.min(3, Math.max(0.35, Math.round(v * 100) / 100));
+    setZoom(z);
+    try { localStorage.setItem('vhviz.zoom', String(z)); } catch { /* abaikan */ }
+  };
   // penanda klik TANPA geser (utk toggle pilih saat mode select)
   const pending = useRef<{ cat: string; id: string; moved: boolean } | null>(null);
   // Esc = lepas semua blok; keluar mode edit juga bersih
@@ -605,6 +619,31 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
             </button>
           </span>
         )}
+        <div className="inline-flex items-center bg-white border border-gray-200 rounded-xl shadow-sm shrink-0" title={`Zoom kanvas ${Math.round(zoom * 100)}%`}>
+          <button
+            onClick={() => applyZoom(zoom - 0.1)}
+            disabled={zoom <= 0.35}
+            className="p-2 rounded-l-xl text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
+            title="Zoom out"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => applyZoom(1)}
+            className="px-2 py-1.5 text-[11px] font-black text-gray-700 hover:bg-gray-50 min-w-[46px] text-center"
+            title="Kembali ke 100%"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            onClick={() => applyZoom(zoom + 0.1)}
+            disabled={zoom >= 3}
+            className="p-2 rounded-r-xl text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+        </div>
         {nEdit > 0 && (
           <button
             onClick={() => setSelectMode((v) => !v)}
@@ -786,10 +825,11 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                           // transform: koordinat inner layar = kotak layar ditambah offset kanvas
                           const ox = (ed ? 300 : 0) + (pans[g.name]?.x || 0);
                           const oy = (ed ? 200 : 0) + (pans[g.name]?.y || 0);
+                          const z2 = zoomRef.current || 1;
                           const hit = g.all.filter((k) => {
                             const pt = lay!.pos.get(k.id);
                             if (!pt) return false;
-                            const x = pt.x + ox, y = pt.y + oy; // ke ruang kanvas luar
+                            const x = pt.x * z2 + ox, y = pt.y * z2 + oy; // ke ruang kanvas luar (skala zoom)
                             return x < box.x + box.w && x + W > box.x && y < box.y + box.h && y + H > box.y;
                           }).map((k) => k.id);
                           setSelCat(g.name, hit);
@@ -803,8 +843,8 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                     }}
                     onPointerLeave={() => { panStart.current = null; }}
                     style={{
-                      width: Math.max(lay!.width, 520) + (ed ? 600 : 0),
-                      height: Math.max(lay!.height, 140) + (ed ? 400 : 0),
+                      width: Math.max(lay!.width, 520) * zoom + (ed ? 600 : 0),
+                      height: Math.max(lay!.height, 140) * zoom + (ed ? 400 : 0),
                       paddingTop: ed ? 200 : 0,
                       paddingLeft: ed ? 300 : 0,
                       paddingRight: ed ? 300 : 0,
@@ -815,7 +855,14 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                   >
                     <div
                       className="absolute"
-                      style={{ left: (ed ? 300 : 0) + (pans[g.name]?.x || 0), top: (ed ? 200 : 0) + (pans[g.name]?.y || 0), width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}
+                      style={{
+                        left: (ed ? 300 : 0) + (pans[g.name]?.x || 0),
+                        top: (ed ? 200 : 0) + (pans[g.name]?.y || 0),
+                        width: Math.max(lay!.width, 520),
+                        height: Math.max(lay!.height, 140),
+                        transform: zoom === 1 ? undefined : `scale(${zoom})`,
+                        transformOrigin: 'top left',
+                      }}
                     >
 
                     <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
@@ -823,9 +870,12 @@ export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
                         <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                           <path d="M0,0 L10,5 L0,10 z" fill="#6366f1" />
                         </marker>
+                        <marker id={`rahb-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                          <path d="M0,0 L10,5 L0,10 z" fill="#111111" />
+                        </marker>
                       </defs>
                       {lay!.edges.map((e, i) => (
-                        <path key={i} d={e.d} fill="none" stroke="#6366f1" strokeWidth={1.1} strokeLinecap="round" markerEnd={`url(#rah-${g.name.replace(/\W/g, '')})`} />
+                        <path key={i} d={e.d} fill="none" stroke={e.black ? '#111111' : '#6366f1'} strokeWidth={e.black ? 1.4 : 1.1} strokeLinecap="round" markerEnd={`url(#${e.black ? 'rahb' : 'rah'}-${g.name.replace(/\W/g, '')})`} />
                       ))}
                     </svg>
                     {g.all.map((k) => {
