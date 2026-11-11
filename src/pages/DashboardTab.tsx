@@ -167,38 +167,7 @@ export default function DashboardTab({
               )}
 
 
-              {/* ===== FILTER ROLE: kategori audit per peran (inspire/educate/convert) ===== */}
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">
-                  <Filter className="w-3.5 h-3.5" /> Role:
-                </span>
-                {AUDIT_ROLES.map((r: any) => {
-                  const on = auditRole === r.id;
-                return (
-                    <button
-                      key={r.id}
-                      onClick={() => setAuditRole(r.id)}
-                      className={cn(
-                        "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border",
-                        on
-                          ? "bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                          : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700"
-                      )}
-                    >
-                      {r.label}
-                    </button>
-                  );
-                })}
-                <span className={cn(
-                  "ml-auto text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full",
-                  auditRole === 'inspect' ? "bg-gray-100 text-gray-400" : "bg-emerald-50 text-emerald-600"
-                )}>
-                  {auditRole === 'convert'
-                    ? "Hanya halaman produk"
-                    : auditRole === 'inspect' ? "Semua halaman" : "Tanpa halaman produk"}
-                </span>
-              </div>
-
+             
               {/* ===== PEMILIH MODUL: horizontal di atas (bukan sidebar lagi) ===== */}
               <div className="flex gap-1.5 flex-wrap mb-6 p-1.5 bg-white border border-gray-200 rounded-2xl overflow-x-auto">
                 {AUDIT_TABS.map((tab) => (
@@ -237,15 +206,12 @@ export default function DashboardTab({
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full">
-                    {auditRole === 'inspect' ? "All Pages" : "Role Filter"}
-                  </div>
                   <button
                     onClick={downloadAllPositionsCsv}
                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-sm hover:shadow-md active:scale-95"
                   >
                     <Download className="w-4 h-4" />
-                    Download All URLs (Pos 1-10)
+                    Download All URLs (Pos 1-8)
                   </button>
                 </div>
               </div>

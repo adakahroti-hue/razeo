@@ -527,8 +527,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           scroll50: clean(body.scroll50, "scroll_50"),
           scroll75: clean(body.scroll75, "scroll_75"),
           ctas,
-          branded_keywords: Array.isArray(body.branded_keywords)
-            ? (body.branded_keywords as any[]).map((x) => (typeof x === 'string' ? x.trim() : '').slice(0, 160)).filter(Boolean).slice(0, 50)
+          branded_keywords: Array.isArray(body.branded_keywords ?? body.branded)
+            ? ((body.branded_keywords ?? body.branded) as any[]).map((x) => (typeof x === 'string' ? x.trim() : '').slice(0, 160)).filter(Boolean).slice(0, 50)
             : [],
         };
         const { data, error } = await supabase

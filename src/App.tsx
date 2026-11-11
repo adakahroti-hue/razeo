@@ -107,10 +107,10 @@ const loadPdfKit = () =>
 type AuditRole = 'inspect' | 'inspire' | 'educate' | 'convert';
 // pemilih kategori peran (sub tab atas tab Optimasi) — audit dibagi per role konten
 const AUDIT_ROLES: Array<{ id: AuditRole; label: string }> = [
+  { id: 'inspect', label: 'Semua' },
   { id: 'inspire', label: 'Inspire' },
   { id: 'educate', label: 'Educate' },
   { id: 'convert', label: 'Convert' },
-  { id: 'inspect', label: 'Semua' },
 ];
 
 const AUDIT_TABS: Array<{ id: string; label: string; icon: any }> = [
@@ -239,7 +239,9 @@ export default function App() {
     // kirim ke database; kalau bukan pemilik / migrasi belum jalan, senyap (localStorage tetap jalan)
     getAuthHeaders().then((headers) => {
       if (!('Authorization' in headers)) return;
-      fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'events-save', ...next }) }).catch(() => {});
+      // field HARUS branded_keywords — API membaca body.branded_keywords (sebelumnya field 'branded' dibuang diam-diam!)
+      const { branded, ...rest } = next;
+      fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'events-save', ...rest, branded_keywords: branded }) }).catch(() => {});
     }).catch(() => {});
   };
   const saveEv = (next: EvCfg) => {
@@ -360,16 +362,29 @@ export default function App() {
         if (!res.ok) return;
         const d = await res.json().catch(() => ({}));
         const ev = d?.events;
-        if (ev && ev.scroll25) {
+        if (ev) {
           const next: EvCfg = {
             scroll25: ev.scroll25 || DEFAULT_EV.scroll25,
             scroll50: ev.scroll50 || DEFAULT_EV.scroll50,
             scroll75: ev.scroll75 || DEFAULT_EV.scroll75,
             ctas: Array.isArray(ev.ctas) && ev.ctas.length ? ev.ctas : DEFAULT_EV.ctas,
+            // keyword branded — pakai nilai DB apa adanya; [] artinya "DB bilang kosong", bukan "belum baca"
             branded: Array.isArray(ev.branded_keywords)
               ? (ev.branded_keywords as any[]).filter((x) => typeof x === 'string' && (x as string).trim())
               : [],
           };
+          const localMid = (() => {
+            try { return JSON.parse(localStorage.getItem('razeo_events') || 'null') as any; } catch { return null; }
+          })();
+          const legacyBranded: string[] = Array.isArray(localMid?.branded) ? localMid.branded : [];
+          const dbEmpty = !Array.isArray(ev.branded_keywords) || !(ev.branded_keywords as any[]).length;
+          if (!next.branded.length && legacyBranded.length) {
+            // pemulihan: keyword lama cuma tersimpan di browser (bug 'branded' vs 'branded_keywords') — angkat ke DB
+            next.branded = legacyBranded;
+            postEvToDb(next);
+          } else if (dbEmpty && next.branded.length) {
+            postEvToDb(next); // sinkron sekali saja
+          }
           if (alive) { setEvCfg(next); localStorage.setItem('razeo_events', JSON.stringify(next)); }
         } else if (d?.events === null) {
           // belum ada baris di DB → tulis sekali (gagal senyap: anggota non-owner kena 403)
@@ -902,7 +917,7 @@ export default function App() {
       if (!inRole(page)) return;
       
       const pos = Math.round(row.position);
-      if (pos >= 1 && pos <= 10) {
+      if (pos >= 1 && pos <= 8) {
         if (!pageMap.has(page)) {
           pageMap.set(page, { clicks: row.clicks, impressions: row.impressions });
         } else {
@@ -926,7 +941,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `CTR-Analysis-All-Positions-1-10-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `CTR-Analysis-All-Positions-1-8-${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2650,7 +2665,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
 
   const getCTRStats = () => {
     const stats: Record<number, { clicks: number, impressions: number, queries: number }> = {};
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 8; i++) {
       stats[i] = { clicks: 0, impressions: 0, queries: 0 };
     }
 
@@ -2659,7 +2674,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
       if (!inRole(page)) return;
       
       const pos = Math.round(row.position);
-      if (pos >= 1 && pos <= 10) {
+      if (pos >= 1 && pos <= 8) {
         stats[pos].clicks += row.clicks;
         stats[pos].impressions += row.impressions;
         stats[pos].queries += 1;
@@ -2868,6 +2883,26 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                     )}
                   >
                     {t}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Tab role tab Optimasi (Semua | Inspire | Educate | Convert) — di header */}
+            {currentTab === 'dashboard' && (
+              <div className="flex flex-1 items-center justify-center gap-1.5 min-w-0 overflow-x-auto">
+                {AUDIT_ROLES.map((r: any) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setAuditRole(r.id)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap',
+                      auditRole === r.id
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
+                    )}
+                  >
+                    {r.label}
                   </button>
                 ))}
               </div>
