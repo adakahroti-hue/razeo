@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Sparkles,
   Target,
   Trash2,
   TrendingUp,
@@ -119,6 +120,7 @@ const AUDIT_TABS: Array<{ id: string; label: string; icon: any; isNew?: boolean 
 // Navigasi utama — chip di header lama, pindah ke sidebar kiri
 const TAB_LIST: Array<{ id: TabId; label: string; icon: any }> = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'insight', label: 'Insight', icon: Sparkles },
   { id: 'cek', label: 'Cek', icon: Eye },
   { id: 'dashboard', label: 'Optimasi', icon: Target },
   { id: 'konten', label: 'Konten', icon: FileText },
@@ -134,9 +136,9 @@ const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> =
 };
 
 // ===== slug URL per tab (sesuai nama tab, huruf kecil tanpa spasi) =====
-type TabId = 'overview' | 'cek' | 'dashboard' | 'konten' | 'visualisasi' | 'task' | 'tracker' | 'pengaturan';
+type TabId = 'overview' | 'insight' | 'cek' | 'dashboard' | 'konten' | 'visualisasi' | 'task' | 'tracker' | 'pengaturan';
 const TAB_PATHS: Record<TabId, string> = {
-  overview: '/overview', cek: '/cek', dashboard: '/optimasi', konten: '/konten',
+  overview: '/overview', insight: '/insight', cek: '/cek', dashboard: '/optimasi', konten: '/konten',
   visualisasi: '/visualisasi', task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
 };
 const TAB_IDS = Object.keys(TAB_PATHS) as TabId[];
@@ -147,6 +149,7 @@ const segToTab = (pathname: string): TabId | null => {
 
 // ===== Lazy per-tab — tiap tab dimuat jadi chunk sendiri sesuai tab yg dibuka =====
 const LazyOverviewTab     = React.lazy(() => import('./tabs/OverviewTab'));
+const LazyInsightTab      = React.lazy(() => import('./tabs/InsightTab'));
 const LazyCekTab          = React.lazy(() => import('./tabs/CekTab'));
 const LazyDashboardTab    = React.lazy(() => import('./pages/DashboardTab'));
 const LazyKontenTab       = React.lazy(() => import('./tabs/KontenTab'));
@@ -192,10 +195,11 @@ export default function App() {
   const [projectConnection, setProjectConnection] = useState<{ gsc_site: string | null; ga4_property: string | null; connected_at: string | null } | null>(null);
   const [projectWorking, setProjectWorking] = useState(false);
   // pill rentang tanggal (header) + pengaturan nama event GA4 (scroll 25/50/75 & CTA)
-  type EvCfg = { scroll25: string; scroll50: string; scroll75: string; ctas: string[] };
+  type EvCfg = { scroll25: string; scroll50: string; scroll75: string; ctas: string[]; branded: string[] };
   const DEFAULT_EV: EvCfg = {
     scroll25: 'scroll_25', scroll50: 'scroll_50', scroll75: 'scroll_75',
     ctas: ['click_cta_article', 'click_cta_ke_produk', 'purchase'],
+    branded: [],
   };
   // dibaca CIAP KALI (localStorage) — lambat tapi bikin seluruh cetus (fetch, sort, render) memakai nama terbaru
   const [evCfg, setEvCfg] = useState<EvCfg>(() => {
@@ -207,6 +211,7 @@ export default function App() {
         scroll50: raw.scroll50 || DEFAULT_EV.scroll50,
         scroll75: raw.scroll75 || DEFAULT_EV.scroll75,
         ctas: Array.isArray(raw.ctas) ? (raw.ctas.filter((x) => typeof x === 'string' && x.trim()) as string[]) : DEFAULT_EV.ctas,
+        branded: Array.isArray(raw.branded) ? (raw.branded.filter((x) => typeof x === 'string' && x.trim()) as string[]) : [],
       };
     } catch { return DEFAULT_EV; }
   });
@@ -235,6 +240,7 @@ export default function App() {
     evSaveTimer.current = window.setTimeout(() => postEvToDb(next), 900);
     // hanya muat ulang yang benar-benar memakai nama event (tab Cek: scroll, Optimasi: daftar event)
     if (currentTab === 'cek') loadCek();
+    if (currentTab === 'insight') loadInsight();
     if (currentTab === 'dashboard' && selectedSite) fetchData(selectedSite);
   };
   const [startDate, setStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -335,6 +341,9 @@ export default function App() {
             scroll50: ev.scroll50 || DEFAULT_EV.scroll50,
             scroll75: ev.scroll75 || DEFAULT_EV.scroll75,
             ctas: Array.isArray(ev.ctas) && ev.ctas.length ? ev.ctas : DEFAULT_EV.ctas,
+            branded: Array.isArray(ev.branded_keywords)
+              ? (ev.branded_keywords as any[]).filter((x) => typeof x === 'string' && (x as string).trim())
+              : [],
           };
           if (alive) { setEvCfg(next); localStorage.setItem('razeo_events', JSON.stringify(next)); }
         } else if (d?.events === null) {
@@ -1458,7 +1467,43 @@ export default function App() {
   };
 
   // ===== Tab OVERVIEW: muat ringkasan GSC + GA4 (filter durasi pakai startDate/endDate) =====
-  const loadOverview = async (sd = startDate, ed = endDate) => {
+    // ===== Tab Insight (branding + returning user) =====
+  const [insight, setInsight] = useState<{ branded: any; users: any } | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightNote, setInsightNote] = useState<string | null>(null);
+  const loadInsight = async (sd = startDate, ed = endDate) => {
+    if (!selectedSite) { setInsight(null); setInsightNote('Pilih property Search Console dulu di halaman properti.'); return; }
+    setInsightLoading(true);
+    const headers = await getAuthHeaders();
+    if (!('Authorization' in headers)) { setInsightNote('Sesi tidak terbaca — muat ulang halaman.'); setInsightLoading(false); return; }
+    // GSC: agregat impresi/klik/CTR keyword branded
+    let branded: any = { keywords: [], summary: { impressions: 0, clicks: 0, ctr: 0 } };
+    let gscErr: string | null = null;
+    try {
+      const q = new URLSearchParams({
+        action: 'branded', siteUrl: String(selectedSite), startDate: sd, endDate: ed,
+        keywords: (evCfg.branded || []).map((k) => (k || '').trim()).filter(Boolean).join(','),
+      });
+      const r = await fetch(`/api/gsc/data?${q.toString()}`, { headers });
+      if (r.ok) branded = await r.json();
+      else gscErr = (await r.json().catch(() => ({})))?.error || `GSC (${r.status})`;
+    } catch (e: any) { gscErr = e?.message || 'GSC gagal dimuat'; }
+    // GA4: total/new/returning users → % returning (opsional: property belum dipilih = kosong)
+    let users: any = null;
+    let ga4Err: string | null = null;
+    const pid = selectedGa4Property?.split('/').pop();
+    if (pid) {
+      try {
+        const r = await fetch(`/api/ga4/data?action=users&propertyId=${pid}&startDate=${sd}&endDate=${ed}`, { headers });
+        if (r.ok) users = await r.json();
+        else ga4Err = (await r.json().catch(() => ({})))?.error || `GA4 (${r.status})`;
+      } catch (e: any) { ga4Err = e?.message || 'GA4 gagal dimuat'; }
+    }
+    setInsight({ branded, users });
+    setInsightNote([gscErr, ga4Err].filter(Boolean).join(' • ') || null);
+    setInsightLoading(false);
+  };
+const loadOverview = async (sd = startDate, ed = endDate) => {
     if (!selectedSite) { setOvData(null); setOvNote('Pilih property Search Console dulu di halaman properti.'); return; }
     setOvLoading(true);
     try {
@@ -1648,9 +1693,10 @@ export default function App() {
 
   // muat data ketika masuk dashboard (project tersambung) + saat tab dibuka
   useEffect(() => {
-    if (viewState === 'dashboard' && (currentTab === 'overview' || currentTab === 'dashboard')) {
+    if (viewState === 'dashboard' && (currentTab === 'overview' || currentTab === 'insight' || currentTab === 'dashboard')) {
       /* deps ditambah isComparing di penutup efek */
       if (currentTab === 'overview') loadOverview();
+      if (currentTab === 'insight') loadInsight();
       else {
         fetchSites();
         if (selectedSite && data.length === 0) fetchData(selectedSite); // isi data dashboard kalau belum ada
@@ -1888,6 +1934,7 @@ export default function App() {
     if (selectedSite && viewState === 'dashboard') {
       if (currentTab === 'dashboard') fetchData(selectedSite);
       if (currentTab === 'overview') loadOverview();
+      if (currentTab === 'insight') loadInsight();
       if (currentTab === 'cek') loadCek();
     }
   }, [startDate, endDate, compareStartDate, compareEndDate, isComparing, currentTab, viewState, selectedSite]);
@@ -2806,7 +2853,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {(currentTab === 'dashboard' || currentTab === 'overview' || currentTab === 'cek') && (
+            {(currentTab === 'dashboard' || currentTab === 'overview' || currentTab === 'insight' || currentTab === 'cek') && (
               <>
                 {/* Pill rentang tanggal */}
                 <div className="relative hidden md:block">
@@ -2866,6 +2913,7 @@ export default function App() {
                             if (!selectedSite) return;
                             if (currentTab === 'dashboard') fetchData(selectedSite);
                             if (currentTab === 'overview') loadOverview();
+                            if (currentTab === 'insight') loadInsight();
                             if (currentTab === 'cek') loadCek();
                           }}
                           disabled={isFetchingData}
@@ -3126,6 +3174,18 @@ export default function App() {
               />
             </div>
           )}
+          {currentTab === 'insight' && (
+            <div key="insight">
+              <LazyInsightTab
+                loading={insightLoading}
+                branded={insight?.branded ?? null}
+                users={insight?.users ?? null}
+                error={insightNote}
+                brandedKeywords={evCfg.branded || []}
+                onRefresh={() => loadInsight()}
+              />
+            </div>
+          )}
           {currentTab === 'konten' && (
             <div key="konten">
               <LazyKontenTab
@@ -3179,7 +3239,7 @@ export default function App() {
               setViewState={setViewState}
             />
           )}
-          {['overview', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
+          {['overview', 'insight', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
           <LazyDashboardTab
             AUDIT_TABS={AUDIT_TABS}
             Ga4EventBreakdown={Ga4EventBreakdown}

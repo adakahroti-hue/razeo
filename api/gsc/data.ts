@@ -46,6 +46,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ current: fmt(cur.data.rows), previous: fmt(prev.data.rows) });
     }
 
+    // ===== Mode BRANDED (tab Insight): agregat impresi/klik/CTR utk keyword branded =====
+    if (String(action || "") === "branded") {
+      const kws = String(req.query.keywords || "")
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 50);
+      if (!kws.length) return res.status(200).json({ keywords: [], summary: { impressions: 0, clicks: 0, ctr: 0 } });
+      const q = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl as string,
+        requestBody: {
+          startDate: startDate as string,
+          endDate: endDate as string,
+          dimensions: ["query"],
+          rowLimit: 25000,
+        },
+      });
+      const rows = q.data.rows || [];
+      const set = new Set(kws);
+      const per = new Map<string, { query: string; impressions: number; clicks: number; ctr: number; position: number }>(
+        kws.map((k) => [k, { query: k, impressions: 0, clicks: 0, ctr: 0, position: 0 }])
+      );
+      let sumsI = 0, sumsC = 0;
+      for (const r of rows) {
+        const kw = String(r.keys?.[0] || "").toLowerCase();
+        if (!set.has(kw)) continue;
+        const e = per.get(kw)!;
+        e.impressions += r.impressions ?? 0;
+        e.clicks += r.clicks ?? 0;
+        if (r.position) e.position += (r.position as number) * (r.impressions ?? 1);
+        sumsI += r.impressions ?? 0;
+        sumsC += r.clicks ?? 0;
+      }
+      const out = [...per.values()];
+      for (const e of out) {
+        e.ctr = e.impressions > 0 ? (e.clicks / e.impressions) * 100 : 0;
+        e.position = e.impressions > 0 ? Math.round((e.position / e.impressions) * 10) / 10 : 0;
+      }
+      out.sort((a, b) => b.impressions - a.impressions);
+      return res.status(200).json({
+        keywords: out,
+        summary: { impressions: sumsI, clicks: sumsC, ctr: sumsI > 0 ? (sumsC / sumsI) * 100 : 0 },
+      });
+    }
+
     // ===== Mode OVERVIEW (tab Overview): top page, top query, rata-rata periode =====
     if (String(action || "") === "overview") {
       const base = { startDate: startDate as string, endDate: endDate as string };

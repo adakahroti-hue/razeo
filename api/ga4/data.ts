@@ -24,6 +24,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const analyticsdata = google.analyticsdata({ version: "v1beta", auth: client });
 
     // ===== Mode COMPARE (tab Cek): sesi & scroll 75% per halaman, dua periode =====
+    // ===== Mode USERS (tab Insight): % Returning user = Returning / Total x 100 =====
+    if (String(action || "") === "users") {
+      const r = await analyticsdata.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: {
+          dateRanges: [{ startDate: startDate as string, endDate: endDate as string }],
+          metrics: [{ name: "totalUsers" }, { name: "newUsers" }, { name: "returningUsers" }],
+        },
+      });
+      const m = r.data?.rows?.[0]?.metricValues || [];
+      const total = Number(m[0]?.value || 0);
+      const fresh = Number(m[1]?.value || 0);
+      // returningUsers resmi tersedia utk GA4; fallback = total - new bila blank
+      const returning = m.length > 2 ? Number(m[2]?.value || 0) : Math.max(0, total - fresh);
+      const returningPct = total > 0 ? (returning / total) * 100 : 0;
+      return res.status(200).json({ totalUsers: total, newUsers: fresh, returningUsers: returning, returningPct });
+    }
+
     if (String(action || "") === "compare") {
       const csd = String(req.query.compareStartDate || "");
       const ced = String(req.query.compareEndDate || "");

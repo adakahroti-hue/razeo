@@ -16,6 +16,7 @@ interface Props {
 }
 
 export default function SettingsPage({ activeProjectId, enterProject, evCfg, handleOpenInvite, panel_title, projects, saveEv, selectedSite, setActiveProjectId, setViewState }: Props) {
+  const branded: string[] = Array.isArray(evCfg?.branded) ? evCfg.branded : [];
   return (
     <motion.div
       key="pengaturan"
@@ -107,6 +108,38 @@ export default function SettingsPage({ activeProjectId, enterProject, evCfg, han
             <UserPlus className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* kartu: daftar keyword branded (dipakai tab Insight → bagian Branding) */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+        <span className={panel_title}>Keyword Branded</span>
+        <p className="text-xs text-gray-400">Daftar kata kunci bermerek — dipakai tab <b className="text-gray-500">Insight &rarr; Branding</b> untuk impresi, klik & CTR.</p>
+        <div className="space-y-2 pt-1">
+          {branded.map((k: string, i: number) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                value={k}
+                onChange={(e) => { const next = [...branded]; next[i] = e.target.value; saveEv({ ...evCfg, branded: next }); }}
+                placeholder="contoh: nama brand anda"
+                className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                onClick={() => saveEv({ ...evCfg, branded: branded.filter((_: string, j: number) => j !== i) })}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                title="Hapus keyword"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => saveEv({ ...evCfg, branded: [...branded, ''] })}
+            className="w-full py-2 border border-dashed border-emerald-300 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors"
+          >
+            + Tambah Keyword Branded
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400">Simpan otomatis — tab Insight langsung memakainya (maks. 50 keyword).</p>
       </div>
 
 

@@ -432,7 +432,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
         const { data, error } = await supabase
           .from("project_events")
-          .select("scroll25, scroll50, scroll75, ctas, updated_at")
+          .select("scroll25, scroll50, scroll75, ctas, branded_keywords, updated_at")
           .eq("project_id", info.projectId)
           .maybeSingle();
         if (error) {
@@ -461,15 +461,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           scroll50: clean(body.scroll50, "scroll_50"),
           scroll75: clean(body.scroll75, "scroll_75"),
           ctas,
+          branded_keywords: Array.isArray(body.branded_keywords)
+            ? (body.branded_keywords as any[]).map((x) => (typeof x === 'string' ? x.trim() : '').slice(0, 160)).filter(Boolean).slice(0, 50)
+            : [],
         };
         const { data, error } = await supabase
           .from("project_events")
           .upsert(row, { onConflict: "project_id" })
-          .select("scroll25, scroll50, scroll75, ctas, updated_at")
+          .select("scroll25, scroll50, scroll75, ctas, branded_keywords, updated_at")
           .single();
         if (error) {
           if (String(error.message).includes("relation") || error.code === "42P01")
             return res.status(500).json({ error: "Tabel project_events belum ada — jalankan migrasi SQL 0007 di Supabase" });
+          if (error.code === "42703") return res.status(500).json({ error: "Kolom baru project_events belum ada — jalankan migrasi SQL 0012 di Supabase" });
           throw error;
         }
         return res.status(200).json({ events: data });
