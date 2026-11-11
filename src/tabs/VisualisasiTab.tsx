@@ -183,8 +183,30 @@ function runLayout(nodes: GNode[]): Graph {
       const ca = roleCol[a], cb = roleCol[b];
       const li = eN++;
       let d: string;
-
-      if (cb > ca || (ca === cb && pa.x < pb.x)) {
+      // ===== PORT ATAS/BAWAH — kartu sejajar (bertumpuk di satu deret) -> garis lurus
+      // vertikal dari tepi ATAS/BAWAH kartu; jauh lebih rapi drpd keluar kanan lalu
+      // menaiki jalur atas. Rute lama dipertahankan bila ruang antar-kartu penuh kartu lain.
+      let vert: string | null = null;
+      const xc0 = pa.x + W / 2, xc1 = pb.x + W / 2;
+      if (pa.x < pb.x + W - 2 && pb.x < pa.x + W - 2 && Math.abs(pa.y - pb.y) > 8) {
+        const xLo = Math.min(xc0, xc1) - 6, xHi = Math.max(xc0, xc1) + 6;
+        const yLo = Math.min(pa.y, pb.y) + H + 1, yHi = Math.max(pa.y, pb.y) - 1;
+        let hit = false;
+        for (const p of pos.values()) {
+          if (p.x < xHi && xLo < p.x + W && p.y < yHi && yLo < p.y + H) { hit = true; break; }
+        }
+        if (!hit && yHi > yLo) {
+          const down = pb.y > pa.y;
+          const a2 = down ? pa.y + H + O : pa.y - O;
+          const b2 = down ? pb.y - E : pb.y + H + E;
+          vert = Math.abs(xc0 - xc1) < 1.5
+            ? `M ${xc0} ${a2} V ${b2}`
+            : `M ${xc0} ${a2} C ${xc0} ${a2 + (down ? 16 : -16)}, ${xc1} ${b2 + (down ? -16 : 16)}, ${xc1} ${b2}`;
+        }
+      }
+      if (vert) {
+        d = vert;
+      } else if (cb > ca || (ca === cb && pa.x < pb.x)) {
         // maju: horizontal -> sudut 90 -> vertikal -> sudut 90 -> horizontal (direction-aware utk y naik/turun)
         const dir = y1 >= y0 ? 1 : -1;
         let at: number;
@@ -245,7 +267,28 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
     const x0 = pa.x + W + 6, y0 = pa.y + H / 2;
     const x1 = pb.x - 6,     y1 = pb.y + H / 2;
     let d: string;
-    if (x1 > x0 + 24) {
+    // kartu sejajar hasil drag -> port ATAS/BAWAH lurus (hindari muter jalur atas)
+    const xc0 = pa.x + W / 2, xc1 = pb.x + W / 2;
+    let vert: string | null = null;
+    if (pa.x < pb.x + W - 2 && pb.x < pa.x + W - 2 && Math.abs(pa.y - pb.y) > 8) {
+      const xLo = Math.min(xc0, xc1) - 6, xHi = Math.max(xc0, xc1) + 6;
+      const yLo = Math.min(pa.y, pb.y) + H + 1, yHi = Math.max(pa.y, pb.y) - 1;
+      let hit = false;
+      for (const p of pos.values()) {
+        if (p.x < xHi && xLo < p.x + W && p.y < yHi && yLo < p.y + H) { hit = true; break; }
+      }
+      if (!hit && yHi > yLo) {
+        const down = pb.y > pa.y;
+        const a2 = down ? pa.y + H + 6 : pa.y - 6;
+        const b2 = down ? pb.y - 6 : pb.y + H + 6;
+        vert = Math.abs(xc0 - xc1) < 1.5
+          ? `M ${xc0} ${a2} V ${b2}`
+          : `M ${xc0} ${a2} C ${xc0} ${a2 + (down ? 16 : -16)}, ${xc1} ${b2 + (down ? -16 : 16)}, ${xc1} ${b2}`;
+      }
+    }
+    if (vert) {
+      d = vert;
+    } else if (x1 > x0 + 24) {
       const m = (x1 - x0) * 0.45;
       d = `M ${x0} ${y0} C ${x0 + m} ${y0}, ${x1 - m} ${y1}, ${x1} ${y1}`;
     } else {
