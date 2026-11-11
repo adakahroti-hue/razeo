@@ -29,6 +29,10 @@ type Props = {
   isComparing: boolean;
   renderChange: (current: number, previous: number, inverse?: boolean) => React.ReactNode;
   onRefresh: () => void;
+  /** ambil header auth (dari App) utk panggil API rincian halaman */
+  authHeaders: () => Promise<Record<string, string>>;
+  /** id property GA4 (tanpa prefix) — null kalau belum dipilih */
+  ga4PropertyId: string | null;
 };
 
 const fmtDate = (d: string) =>
@@ -57,12 +61,14 @@ function Empty({ msg }: { msg: string }) {
 type Col = { id: string; label: string; align?: 'right' };
 
 function SortableTable({
-  cols, rows, cell, maxH = 'max-h-[430px]',
+  cols, rows, cell, maxH = 'max-h-[430px]', onRowClick,
 }: {
   cols: Col[];
   rows: OvRow[];
   cell: (row: OvRow, colId: string) => React.ReactNode;
   maxH?: string;
+  /** bila diisi, tiap baris bisa diklik (buka rincian halaman) */
+  onRowClick?: (row: OvRow) => void;
 }) {
   const [sort, setSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
   const sorted = useMemo(() => {
@@ -113,7 +119,12 @@ function SortableTable({
       </thead>
       <tbody className={cn("divide-y divide-gray-50 block overflow-y-auto ", maxH)}>
         {sorted.map((r, i) => (
-          <tr key={`${r.key}-${i}`} className="hover:bg-gray-50/60 grid grid-cols-[2.5rem_1fr_6rem_6rem_5rem] md:grid-cols-[2.5rem_1fr_7rem_7rem_6rem] items-center">
+          <tr
+            key={`${r.key}-${i}`}
+            onClick={onRowClick ? () => onRowClick(r) : undefined}
+            className={cn('grid grid-cols-[2.5rem_1fr_6rem_6rem_5rem] md:grid-cols-[2.5rem_1fr_7rem_7rem_6rem] items-center', onRowClick ? 'cursor-pointer hover:bg-emerald-50/70' : 'hover:bg-gray-50/60')}
+            title={onRowClick ? 'Klik untuk lihat 3 halaman teratas' : undefined}
+          >
             <td className="px-4 py-2.5 text-xs font-black text-gray-400 tabular-nums">{i + 1}</td>
             {cols.map((c) => (
               <td key={c.id} className={cn('px-3 py-2.5 min-w-0', c.align === 'right' ? 'text-right' : '')}>
@@ -127,11 +138,47 @@ function SortableTable({
   );
 }
 
-export default function OverviewTab({ loading, data, note, startDate, endDate, compareStartDate, compareEndDate, isComparing, renderChange, onRefresh }: Props) {
+export default function OverviewTab({ loading, data, note, startDate, endDate, compareStartDate, compareEndDate, isComparing, renderChange, onRefresh, authHeaders, ga4PropertyId }: Props) {
   const s = data?.gsc.summary;
   const cmp = data?.gscPrev?.summary;
   // filter sumber trafik (state utama — jangan useState di dalam render)
   const [srcFilter, setSrcFilter] = useState<'semua' | 'organic' | 'referral' | 'direct' | 'ai'>('semua');
+  // ===== rincian per baris: 3 halaman teratas kelompok yg diklik =====
+  const [drill, setDrill] = useState<{
+    title: string; sub: string;
+    dim: string; value: string; secDim?: string; secVal?: string;
+    pages: { page: string; sessions: number }[] | null;
+    loading: boolean; error?: string | null;
+  } | null>(null);
+  const openDrill = (next: {
+    title: string; sub: string;
+    dim: string; value: string; secDim?: string; secVal?: string;
+  }) => {
+    if (!ga4PropertyId) {
+      setDrill({ ...next, pages: null, loading: false, error: 'Property GA4 belum dipilih — pilih property dulu di halaman properti.' });
+      return;
+    }
+    setDrill({ ...next, pages: null, loading: true });
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const probe = next.secVal
+          ? `&secondaryDimension=${encodeURIComponent(next.secDim || '')}&secondaryValue=${encodeURIComponent(next.secVal)}`
+          : '';
+        const url = `/api/ga4/data?action=pages&propertyId=${encodeURIComponent(ga4PropertyId)}&startDate=${startDate}&endDate=${endDate}` +
+          `&dimension=${encodeURIComponent(next.dim)}&dimensionValue=${encodeURIComponent(next.value)}${probe}`;
+        const res = await fetch(url, { headers });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d?.error) {
+          setDrill((cur) => (cur && cur.loading ? { ...cur, loading: false, error: d?.error || `Gagal (${res.status})` } : null));
+          return;
+        }
+        setDrill((cur) => (cur && cur.loading ? { ...cur, loading: false, pages: d?.pages || [] } : null));
+      } catch (e: any) {
+        setDrill((cur) => (cur && cur.loading ? { ...cur, loading: false, error: e?.message || 'Gagal memuat halaman' } : null));
+      }
+    })();
+  };
   const fmtNum = (n: number | undefined | null) =>
     (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}K` : String(n ?? 0);
 
@@ -369,6 +416,18 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                         { id: 'sessions', label: 'Sesi', align: 'right' },
                       ]}
                       rows={rows}
+                      onRowClick={(r) => {
+                        const rr = r as any;
+                        if (!rr.source && !rr.medium) { setDrill({ title: 'Baris tanpa nilai', sub: '(tidak diketahui)', dim: 'source', value: '', pages: null, loading: false, error: 'Baris ini tidak punya nilai sumber.' }); return; }
+                        openDrill({
+                          title: rr.source || '(not set)',
+                          sub: `${rr.source || '(not set)'} / ${rr.medium || '(not set)'}`,
+                          dim: rr.source ? 'source' : 'medium',
+                          value: rr.source || rr.medium,
+                          secDim: rr.source && rr.medium ? 'medium' : undefined,
+                          secVal: rr.source && rr.medium ? rr.medium : undefined,
+                        });
+                      }}
                       cell={(r, col) => {
                         const rr = r as any;
                         if (col === 'source') return <span className="text-gray-700 truncate block" title={rr.source || '-'}>{rr.source || '(tidak diketahui)'}</span>;
@@ -390,6 +449,11 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                     { id: 'sessions', label: 'Sesi', align: 'right' },
                   ]}
                   rows={data.topCities}
+                  onRowClick={(r) =>
+                    r.key
+                      ? openDrill({ title: r.key || '(not set)', sub: 'Kota', dim: 'city', value: r.key })
+                      : setDrill({ title: 'Baris tanpa nilai', sub: 'Kota', dim: 'city', value: '', pages: null, loading: false, error: 'Baris ini tidak punya nama kota.' })
+                  }
                   cell={(r, col) =>
                     col === 'key'
                       ? <span className="text-gray-700">{r.key || '(tidak diketahui)'}</span>
@@ -403,9 +467,9 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
           {/* ===== Browser / OS / Device — metrik: sesi ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {([
-              { title: 'Browser', icon: Globe, rows: data.topBrowsers || [] },
-              { title: 'Operating System', icon: BarChart3, rows: data.topOss || [] },
-              { title: 'Device Category', icon: Users, rows: data.topDevices || [] },
+              { title: 'Browser', icon: Globe, rows: data.topBrowsers || [], dim: 'browser' },
+              { title: 'Operating System', icon: BarChart3, rows: data.topOss || [], dim: 'operatingSystem' },
+              { title: 'Device Category', icon: Users, rows: data.topDevices || [], dim: 'deviceCategory' },
             ] as const).map((pnl) => (
               <div key={pnl.title}>
               <Panel title={pnl.title} icon={pnl.icon}>
@@ -419,6 +483,11 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
                       { id: 'sessions', label: 'Sesi', align: 'right' },
                     ]}
                     rows={pnl.rows}
+                    onRowClick={(rw) =>
+                      rw.key
+                        ? openDrill({ title: rw.key, sub: pnl.title, dim: (pnl as any).dim, value: rw.key })
+                        : setDrill({ title: 'Baris tanpa nilai', sub: pnl.title, dim: (pnl as any).dim, value: '', pages: null, loading: false, error: 'Baris ini tidak punya nilai.' })
+                    }
                     cell={(rw, col) =>
                       col === 'key'
                         ? <span className="text-gray-700 block truncate" title={rw.key}>{rw.key || '(tidak diketahui)'}</span>
@@ -431,6 +500,59 @@ export default function OverviewTab({ loading, data, note, startDate, endDate, c
             ))}
           </div>
         </>
+      )}
+
+      {/* ===== POPUP: 3 halaman teratas utk baris yg diklik ===== */}
+      {drill && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setDrill(null)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 px-5 py-4 border-b border-gray-100">
+              <span className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-gray-900 break-words">{drill.title}</h3>
+                <p className="text-[11px] text-gray-400">3 halaman teratas &bull; {drill.sub}</p>
+              </div>
+              <button
+                onClick={() => setDrill(null)}
+                className="ml-auto p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg shrink-0"
+                title="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5">
+              {drill.loading ? (
+                <div className="py-8 text-center text-sm text-gray-400">Memuat halaman teratas...</div>
+              ) : drill.error ? (
+                <div className="p-4 bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl">{drill.error}</div>
+              ) : !drill.pages || drill.pages.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Tidak ada halaman pada kelompok ini (rentang tanggal {fmtDate(startDate)} &ndash; {fmtDate(endDate)}).</div>
+              ) : (
+                <ol className="space-y-2">
+                  {drill.pages.map((p, i) => (
+                    <li key={p.page + i} className="flex items-center gap-3 px-3.5 py-3 bg-gray-50 border border-gray-100 rounded-xl">
+                      <span className="w-6 h-6 rounded-md bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
+                      <span className="flex-1 min-w-0 text-sm text-gray-800 break-all">{p.page || '/'}</span>
+                      <span className="shrink-0 text-xs font-bold text-gray-700 tabular-nums">{fmtNum(p.sessions)} sesi</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/70 text-[11px] text-gray-400">
+              Sumber: Google Analytics 4 &bull; {fmtDate(startDate)} &ndash; {fmtDate(endDate)}
+            </div>
+          </motion.div>
+        </div>
       )}
     </motion.div>
   );

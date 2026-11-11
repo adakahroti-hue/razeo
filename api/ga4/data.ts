@@ -42,6 +42,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ totalUsers: total, newUsers: fresh, returningUsers: returning, returningPct });
     }
 
+    // ===== Mode PAGES (tab Overview): 3 halaman teratas utk kelompok yg diklik =====
+    if (String(action || "") === "pages") {
+      const dim = (String(req.query.dimension || "") || "").trim();
+      const val = String(req.query.dimensionValue || "");
+      const ACCEPT: Record<string, string> = {
+        source: "sessionSource", medium: "sessionMedium", city: "city",
+        browser: "browser", operatingSystem: "operatingSystem", deviceCategory: "deviceCategory",
+        pagePath: "pagePath",
+      };
+      if (!val) return res.status(400).json({ error: "dimensionValue wajib diisi" });
+      if (!(dim in ACCEPT)) return res.status(400).json({ error: "dimension tidak dikenal" });
+      // baris sumber trafik = source + medium → gabung 2 filter AND biar cocok 1 baris
+      const primary = {
+        fieldName: ACCEPT[dim],
+        stringFilter: { value: val, matchType: "EXACT" },
+      };
+      const secDim = String(req.query.secondaryDimension || "").trim();
+      const secVal = String(req.query.secondaryValue || "");
+      const secondary = secVal && secDim in ACCEPT
+        ? { fieldName: ACCEPT[secDim], stringFilter: { value: secVal, matchType: "EXACT" } }
+        : null;
+      const r = await analyticsdata.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: {
+          dateRanges: [{ startDate: startDate as string, endDate: endDate as string }],
+          dimensions: [{ name: "pagePath" }],
+          metrics: [{ name: "sessions" }],
+          dimensionFilter: secondary
+            ? { andGroup: { expressions: [{ filter: primary as any }, { filter: secondary as any }] } }
+            : { filter: primary as any },
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "3",
+        },
+      });
+      const pages = (r.data?.rows || []).map((row: any) => ({
+        page: row.dimensionValues?.[0]?.value || "",
+        sessions: Number(row.metricValues?.[0]?.value || 0),
+      }));
+      return res.status(200).json({ pages });
+    }
+
     if (String(action || "") === "compare") {
       const csd = String(req.query.compareStartDate || "");
       const ced = String(req.query.compareEndDate || "");

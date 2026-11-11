@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -8,6 +8,8 @@ import { keywordMap, urlToKeyword } from '../lib/resolveKeyword';
 type Props = {
   loading: boolean;
   items: ContentItem[];
+  /** header auth (dari App) utk load/simpan posisi flowchart ke server */
+  authHeaders?: () => Promise<Record<string, string>>;
 };
 
 // urut + tata persis seperti tab Konten: role inspire>educate>convert, pemecah tanggal terbaru
@@ -65,12 +67,12 @@ const midY = (r: number) => rowY(r) + H / 2;
 
 type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[]; colOverride?: number };
 type Box = { x: number; y: number };
-type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[] };
+type Graph = { pos: Map<string, Box>; edges: { d: string }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[]; pairs?: { src: string; dst: string }[] };
 
 // ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
 function runLayout(nodes: GNode[]): Graph {
   const n = nodes.length;
-  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, colHeaders: [] };
+  if (n === 0) return { pos: new Map(), edges: [], width: PAD_X * 2, height: 60, colHeaders: [], pairs: [] };
   const idx = new Map(nodes.map((k, i) => [k.id, i]));
   const outgoing = nodes.map((k) => k.outIds.filter((t) => idx.has(t)).map((t) => idx.get(t)!));
 
@@ -157,6 +159,7 @@ function runLayout(nodes: GNode[]): Graph {
   // BACK/SAME: keluar tepi kanan sumber -> naik pendek ke LANE TOP -> horizontal (di ruang atas) -> turun di GAP -> masuk kiri
   // Semua segmen lurus + sudut r-8 (elbow diraba rapi), tanpa melintasi kotak.
   const edges: { d: string }[] = [];
+  const pairs: { src: string; dst: string }[] = [];
   const gapEnd = new Map<number, number>();   // blok role -> tepi kanan blok
   for (const rc of sortedRoleCols) {
     const sc = subCountOf.get(rc)!;
@@ -211,10 +214,50 @@ function runLayout(nodes: GNode[]): Graph {
           `H ${x1}`;
       }
       edges.push({ d });
+      pairs.push({ src: nodes[a].id, dst: nodes[b].id });
     }
   }
 
-  return { pos, edges, width, height, colHeaders };
+  return { pos, edges, width, height, colHeaders, pairs };
+}
+
+// ===== gerakkan node: terapkan geseran manual (dx,dy) di atas layout dasar =====
+// panah dihitung ulang dari posisi AKHIR tiap kotak — jalur sederhana (bezier maju,
+// lewat jalur atas utk arah mundur) supaya tak brenta dengan komputasi grid bawaan.
+function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): Graph {
+  const pos = new Map<string, Box>();
+  let maxR = 0, maxB = 0;
+  for (const [id, p] of base.pos) {
+    const f = fix?.[id];
+    const x = p.x + (f?.dx || 0);
+    const y = p.y + (f?.dy || 0);
+    pos.set(id, { x, y });
+    maxR = Math.max(maxR, x + W + PAD_X);
+    maxB = Math.max(maxB, y + H + PAD_BOT);
+  }
+  const edges: { d: string }[] = [];
+  for (const pr of base.pairs || []) {
+    const pa = pos.get(pr.src), pb = pos.get(pr.dst);
+    if (!pa || !pb) continue;
+    const x0 = pa.x + W + 6, y0 = pa.y + H / 2;
+    const x1 = pb.x - 6,     y1 = pb.y + H / 2;
+    let d: string;
+    if (x1 > x0 + 24) {
+      const m = (x1 - x0) * 0.45;
+      d = `M ${x0} ${y0} C ${x0 + m} ${y0}, ${x1 - m} ${y1}, ${x1} ${y1}`;
+    } else {
+      // maju tak jalan (mundur / overlap) → lewat jalur atas dua kotak
+      const lane = Math.max(6, Math.min(y0, y1) - 26);
+      const xup = Math.max(x0 + 18, x1 + W + 18);
+      d =
+        `M ${x0} ${y0} H ${xup - 10} Q ${xup} ${y0}, ${xup} ${y0 - 12} ` +
+        `V ${lane + 12} Q ${xup} ${lane}, ${xup - 12} ${lane} ` +
+        `H ${x1 + 12} Q ${x1} ${lane}, ${x1} ${lane + 12} ` +
+        `V ${y1 - 12} Q ${x1} ${y1}, ${x1 - 10} ${y1} H ${x1}`;
+    }
+    edges.push({ d });
+  }
+  return { ...base, pos, edges, width: Math.max(base.width, maxR), height: Math.max(base.height, maxB) };
 }
 
 type Group = { name: string; all: GNode[] };
@@ -222,9 +265,57 @@ type Group = { name: string; all: GNode[] };
 // READ-ONLY: tab ini HANYA menampilkan ringkasan visual dari tab Konten.
 // Kontrak: jangan menambahkan tombol tambah/ubah/hapus, form, atau callback tulis (onAdd/onUpdate/onDelete).
 // Sumber data = contentItems tab Konten (di App), disaring tampilan oleh state lokal (cari/buka-tutup) saja.
-export default function VisualisasiTab({ loading, items }: Props) {
+export default function VisualisasiTab({ loading, items, authHeaders }: Props) {
   const [q, setQ] = useState('');
   const kwMap = useMemo(() => keywordMap(items), [items]);
+
+  // ===== EDIT POSISI (geser kotak bebas, tersimpan per project) =====
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  // fix = { kategori: { nodeId: {dx,dy} } } — offset dari posisi dasar layout
+  const [fixes, setFixes] = useState<Record<string, Record<string, { dx: number; dy: number }>>>({});
+  const projKey = (() => { try { return localStorage.getItem('razeo_project') || 'none'; } catch { return 'none'; } })();
+
+  const loadFixes = async () => {
+    try {
+      const headers: Record<string, string> = authHeaders ? await authHeaders() : {};
+      if (!('Authorization' in headers)) return;
+      const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'flow-get' }) });
+      if (!res.ok) return;
+      const d = await res.json().catch(() => ({}));
+      if (d?.positions && typeof d.positions === 'object') {
+        // simpan Milik perubahan lokal (mis. belum sempat save) — lokal menang
+        setFixes((prev) => (Object.keys(prev).length ? { ...d.positions, ...prev } : d.positions));
+      }
+    } catch { /* server/down — tetap pakai posisi dasar */ }
+  };
+  useEffect(() => { loadFixes(); /* eslint-disable-next-line */ }, [projKey]);
+  const fixRef = useRef(fixes);
+  fixRef.current = fixes;
+  const saveTimer = useRef<number | null>(null);
+  const scheduleSave = () => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    // auto-save 800ms setelah gerakan terakhir (tab lama / crash tetap aman)
+    saveTimer.current = window.setTimeout(() => { void saveFixes(fixRef.current); }, 800);
+  };
+
+  const saveFixes = async (next: Record<string, Record<string, { dx: number; dy: number }>>) => {
+    if (!authHeaders) return true;
+    try {
+      setSaving(true);
+      const headers = await authHeaders();
+      if (!('Authorization' in headers)) return true; // sesi hilang sementara — perubahan tetap lokal
+      const res = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'flow-save', positions: next }) });
+      const ok = res.ok;
+      if (!ok) {
+        const d = await res.json().catch(() => ({}));
+        // migrasi belum jalan → tetap di UI, cuma info singkat
+        if (d?.needsMigration) console.info('[razeo]', d.needsMigration);
+      }
+      return ok;
+    } catch { return false; } finally { setSaving(false); }
+  };
 
   // ===== data & urutan SAMA dgn tab Konten: role -> tanggal, kelompok kategori =====
   const groups: Group[] = useMemo(() => {
@@ -335,6 +426,28 @@ export default function VisualisasiTab({ loading, items }: Props) {
       ),
     [groups, q]
   );
+  const onBoxDown = (e: React.PointerEvent, cat: string, id: string) => {
+    if (!editMode) return;
+    e.preventDefault(); // jangan mulai select teks
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    dragData.current = { id, cat, sx: e.clientX, sy: e.clientY, base: getFix(cat, id) };
+    setDragId(id);
+  };
+  const onBoxMove = (e: React.PointerEvent) => {
+    const d = dragData.current;
+    if (!d || !editMode) return;
+    const nx = d.base.dx + (e.clientX - d.sx);
+    const ny = d.base.dy + (e.clientY - d.sy);
+    setFix(d.cat, d.id, Math.round(nx), Math.round(ny));
+  };
+  const onBoxUp = () => {
+    if (dragData.current) {
+      dragData.current = null;
+      setDragId(null);
+      scheduleSave(); // jadwal simpan (bila gerakan terakhir, timer akan jalan)
+    }
+  };
+
   const allOpen = shown.length > 0 && shown.every((g) => openMap[g.name] !== false);
   const toggleAll = () => {
     const next: Record<string, boolean> = {};
@@ -344,10 +457,34 @@ export default function VisualisasiTab({ loading, items }: Props) {
 
   const layouts = useMemo(() => {
     const m: Record<string, Graph> = {};
-    for (const g of shown) m[g.name] = runLayout(g.all);
+    for (const g of shown) {
+      const base = runLayout(g.all);
+      m[g.name] = withFix(base, fixes[g.name] || {});
+    }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown, openMap]);
+  }, [shown, openMap, fixes]);
+
+  // offset geser kanvas per grup (drag area abu-abu kosong)
+  const [pans, setPans] = useState<Record<string, { x: number; y: number }>>({});
+  const panStart = useRef<{ x: number; y: number; px: number; py: number; name: string } | null>(null);
+
+  // alur drag per KOTAK: geser bebas di seluruh kanvas = ubah offset (dx,dy)
+  const dragData = useRef<{ id: string; cat: string; sx: number; sy: number; base: { dx: number; dy: number } } | null>(null);
+
+  const getFix = (cat: string, id: string) => fixes[cat]?.[id] || { dx: 0, dy: 0 };
+  const setFix = (cat: string, id: string, dx: number, dy: number) => {
+    setFixes((prev) => {
+      const next: typeof fixes = { ...prev };
+      const catMap = { ...(next[cat] || {}) };
+      // nol dihapus (balik ke posisi dasar layout)
+      if (!dx && !dy) delete catMap[id];
+      else catMap[id] = { dx, dy };
+      if (Object.keys(catMap).length) next[cat] = catMap; else delete next[cat];
+      return next;
+    });
+    scheduleSave();
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
@@ -369,6 +506,18 @@ export default function VisualisasiTab({ loading, items }: Props) {
           <span className="mx-1.5 text-gray-300">&bull;</span>
           Tautan: <b className="text-emerald-600">{totalChips}</b>
         </div>
+        <button
+          onClick={() => setEditMode(!editMode)}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors',
+            editMode
+              ? 'bg-emerald-600 border-emerald-600 text-white'
+              : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700'
+          )}
+          title={editMode ? 'Selesai & simpan posisi' : 'Masuk mode edit — geser kotak bebas'}
+        >
+          {editMode ? 'Selesai Edit' : 'Edit Posisi'}
+        </button>
         <button
           onClick={toggleAll}
           className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:border-emerald-300"
@@ -420,8 +569,59 @@ export default function VisualisasiTab({ loading, items }: Props) {
               </button>
 
               {open && (
-                <div className="border-t border-gray-100 bg-[#f6f7f9] overflow-x-auto px-3 py-3">
-                  <div className="relative" style={{ width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}>
+                <div className="border-t border-gray-100 bg-[#f6f7f9] overflow-auto px-3 py-3">
+                  {/* mode edit: kanvas LUAS (ruang kosong utk geser bebas) + offset geser kanvas */}
+                  {editMode && (
+                    <div className="flex items-center gap-2 mb-2.5 text-[11px] font-bold text-emerald-700">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200">
+                        ✋ Klik & tarik kotak untuk memindahkannya
+                      </span>
+                      <span className="hidden sm:inline text-gray-400 font-medium">geser area abu-abu = geser seluruh tampilan</span>
+                      <button
+                        onClick={() => {
+                          const next = { ...fixRef.current };
+                          delete next[g.name];
+                          setFixes(next);
+                          if (saveTimer.current) { window.clearTimeout(saveTimer.current); saveTimer.current = null; }
+                          void saveFixes(next);
+                        }}
+                        className="ml-auto px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200"
+                        title="Balikkan posisi kategori ini ke susunan otomatis"
+                      >
+                        Reset kategori ini
+                      </button>
+                    </div>
+                  )}
+                  <div
+                    className="relative"
+                    onPointerDown={(e) => {
+                      if (!editMode) return;
+                      // cuma kalau klik di area kosong (bukan kotak)
+                      if ((e.target as HTMLElement).closest('[data-node]')) return;
+                      panStart.current = { x: e.clientX, y: e.clientY, px: (pans[g.name]?.x || 0), py: (pans[g.name]?.y || 0), name: g.name };
+                    }}
+                    onPointerMove={(e) => {
+                      const p = panStart.current;
+                      if (!p || !editMode) return;
+                      setPans((prev) => ({ ...prev, [p.name]: { x: p.px + (e.clientX - p.x), y: p.py + (e.clientY - p.y) } }));
+                    }}
+                    onPointerUp={() => { panStart.current = null; }}
+                    onPointerLeave={() => { panStart.current = null; }}
+                    style={{
+                      width: Math.max(lay!.width, 520) + (editMode ? 600 : 0),
+                      height: Math.max(lay!.height, 140) + (editMode ? 400 : 0),
+                      paddingTop: editMode ? 200 : 0,
+                      paddingLeft: editMode ? 300 : 0,
+                      paddingRight: editMode ? 300 : 0,
+                      paddingBottom: editMode ? 200 : 0,
+                      cursor: editMode ? 'grab' : undefined,
+                      touchAction: editMode ? 'none' : undefined,
+                    }}
+                  >
+                    <div
+                      className="absolute"
+                      style={{ left: (editMode ? 300 : 0) + (pans[g.name]?.x || 0), top: (editMode ? 200 : 0) + (pans[g.name]?.y || 0), width: Math.max(lay!.width, 520), height: Math.max(lay!.height, 140) }}
+                    >
                     <svg className="absolute inset-0 pointer-events-none overflow-visible" width={Math.max(lay!.width, 520)} height={Math.max(lay!.height, 140)} aria-hidden>
                       <defs>
                         <marker id={`rah-${g.name.replace(/\W/g, '')}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -448,20 +648,29 @@ export default function VisualisasiTab({ loading, items }: Props) {
                       const p = lay!.pos.get(k.id);
                       if (!p) return null;
                       const cls = fillOf(k);
+                      const picking = editMode && dragId === k.id;
                       return (
                         <div
                           key={k.id}
-                          title={k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`}
+                          data-node={k.id}
+                          title={editMode ? 'Tarik untuk memindahkan' : (k.member ? k.kw : `BAHAN dari kolom Internal Link: ${k.kw}`)}
+                          onPointerDown={(e) => onBoxDown(e, g.name, k.id)}
+                          onPointerMove={onBoxMove}
+                          onPointerUp={onBoxUp}
+                          onPointerCancel={onBoxUp}
                           className={cn(
                             'absolute rounded-[10px] px-2.5 flex items-center text-[12px] font-semibold text-center justify-center leading-tight shadow-[0_1px_3px_rgba(15,23,42,0.10)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition',
+                            editMode && 'ring-2 ring-white cursor-grab active:cursor-grabbing shadow-[0_4px_12px_rgba(15,23,42,0.20)] z-10',
+                            picking && 'scale-[1.03] ring-emerald-400',
                             cls
                           )}
-                          style={{ left: p.x, top: p.y, width: W, height: H }}
+                          style={{ left: p.x, top: p.y, width: W, height: H, touchAction: editMode ? 'none' : undefined }}
                         >
                           <span className="line-clamp-2 break-words text-center">{k.kw}</span>
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -481,10 +690,10 @@ export default function VisualisasiTab({ loading, items }: Props) {
           <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" /><circle cx="12" cy="12" r="3" />
           </svg>
-          READ-ONLY
+          READ-ONLY (data)
         </span>
         <span className="text-gray-300 hidden md:inline">|</span>
-        <span><Link2 className="w-3 h-3 inline" /> semua data & tampilan mengikuti <b>tab Konten</b> — tak ada input di sini; ubah konten lewat tab Konten</span>
+        <span><Link2 className="w-3 h-3 inline" /> isi & tampilan mengikuti <b>tab Konten</b>; hanya POSISI kotak bisa diatur lewat <b>Edit Posisi</b> (tersimpan per project)</span>
       </p>
     </motion.div>
   );

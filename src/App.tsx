@@ -3170,6 +3170,8 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                 compareEndDate={compareEndDate}
                 isComparing={isComparing}
                 renderChange={renderChange}
+                authHeaders={getAuthHeaders}
+                ga4PropertyId={selectedGa4Property ? selectedGa4Property.split('/').pop() || null : null}
                 onRefresh={() => loadOverview()}
               />
             </div>
@@ -3211,7 +3213,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           )}
           {currentTab === 'visualisasi' && (
             <div key="visualisasi">
-              <LazyVisualisasiTab loading={contentLoading} items={contentItems} />
+              <LazyVisualisasiTab loading={contentLoading} items={contentItems} authHeaders={getAuthHeaders} />
             </div>
           )}
           {currentTab === 'task' && (

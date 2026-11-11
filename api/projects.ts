@@ -426,6 +426,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ deleted: true });
       }
 
+      // --- posisi flowchart tab Visualisasi (baca/tulis layout per project) ---
+      if (action === "flow-get") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const { data, error } = await supabase
+          .from("project_layout")
+          .select("flow_positions")
+          .eq("project_id", info.projectId)
+          .maybeSingle();
+        if (error) {
+          if (error.code === "42P01" || error.code === "PGRST205" || String(error.message).includes("schema cache"))
+            return res.status(200).json({ positions: {}, needsMigration: "jalankan migrasi SQL 0013 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ positions: (data?.flow_positions as any) || {} });
+      }
+      if (action === "flow-save") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const fp = body.positions;
+        if (typeof fp !== "object" || fp === null || Array.isArray(fp))
+          return res.status(400).json({ error: "positions wajib berupa objek" });
+        // simpan geseran manual: { kategori: { nodeId: {dx, dy} } } — angka, maks 5000 node, maks 50 kategori
+        const cleaned: Record<string, Record<string, { dx: number; dy: number }>> = {};
+        let total = 0;
+        const cats = Object.keys(fp as Record<string, any>).slice(0, 50);
+        for (const cat of cats) {
+          const src = (fp as any)[cat];
+          if (!src || typeof src !== "object" || Array.isArray(src)) continue;
+          const map: Record<string, { dx: number; dy: number }> = {};
+          for (const nid of Object.keys(src).slice(0, 5000)) {
+            const v = src[nid];
+            if (!v || typeof v !== "object") continue;
+            const dx = Math.max(-60000, Math.min(60000, Number(v.dx) || 0));
+            const dy = Math.max(-60000, Math.min(60000, Number(v.dy) || 0));
+            if (!dx && !dy) continue; // nol = tak ada geseran → buang
+            map[nid.slice(0, 300)] = { dx, dy };
+            if (++total > 5000) break;
+          }
+          if (Object.keys(map).length) cleaned[cat.slice(0, 200)] = map;
+        }
+        const { data, error } = await supabase
+          .from("project_layout")
+          .upsert({ project_id: info.projectId, flow_positions: cleaned, updated_at: new Date().toISOString() }, { onConflict: "project_id" })
+          .select("flow_positions")
+          .single();
+        if (error) {
+          if (error.code === "42P01" || error.code === "PGRST205")
+            return res.status(500).json({ error: "Tabel project_layout belum ada — jalankan migrasi SQL 0013 di Supabase" });
+          if (error.code === "42703")
+            return res.status(500).json({ error: "Kolom project_layout belum ada — jalankan migrasi SQL 0013 di Supabase" });
+          throw error;
+        }
+        return res.status(200).json({ positions: data?.flow_positions || {} });
+      }
+
       // --- nama event scroll & CTA project (baca) ---
       if (action === "events-get") {
         const info = await requireProject(user.uid, req);
