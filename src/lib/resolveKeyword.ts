@@ -22,7 +22,22 @@ export function keywordMap<T extends { link_artikel?: string | null; target_keyw
   return m;
 }
 
-// URL -> kata kunci tujuan. Kalau tak ada artikel bersangkutan di daftar ini,
+// path URL (tanpa host) utk pencocokan URL relatif "/produk/x/" vs bebas host "daykit.id/produk/x"
+// dipakai kolom Internal Link yg ditulis tanpa domain. Kembalikan '' utk token polos tanpa prefix.
+export const normPath = (u?: string | null): string => {
+  const n = normUrl(u);
+  if (!n) return '';
+  const i = n.indexOf('/');
+  if (i > 0) {
+    // ada host (domain, terdeteksi titik) sebelum path → buang hostnya
+    if (n.slice(0, i).includes('.')) return '/' + n.slice(i + 1);
+    return n;
+  }
+  if (n.startsWith('/')) return n; // sudah path mutlak
+  return ''; // token polos tanpa prefix — bukan path
+};
+
+// URL -> kata kunci tujuan Kalau tak ada artikel bersangkutan di daftar ini,
 // pakai slug terakhir yang dirapikan jadi teks (tetap terbaca walaupun bukan keyword).
 export function urlToKeyword(url: string, m: Map<string, string>): string {
   const k = normUrl(url);

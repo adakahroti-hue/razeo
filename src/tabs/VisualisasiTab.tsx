@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Search, Network, Folder, ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, MousePointerClick, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ContentItem } from './KontenTab';
-import { keywordMap, urlToKeyword, normUrl } from '../lib/resolveKeyword';
+import { keywordMap, urlToKeyword, normUrl, normPath } from '../lib/resolveKeyword';
 
 type Props = {
   loading: boolean;
@@ -272,18 +272,30 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
   const [q, setQ] = useState('');
   const kwMap = useMemo(() => keywordMap(items), [items]);
   // map URL (normUrl) -> nama produk ASLI dari tabel products — hanya ini boleh jd kotak PRODUK
-  const prodUrlMap = useMemo(() => {
-    const m = new Map<string, string>();
+  // DUA mode pencocokan utk link relatif: URL penuh (host) & path (/produk/x) — internal link sering tanpa domain
+  const prodMaps = useMemo(() => {
+    const full = new Map<string, string>();
+    const path = new Map<string, string>();
     for (const p of prodItems || []) {
       const nama = (p.nama_produk || '').trim();
       if (!nama) continue;
       for (const u of [p.link_shopee, p.link_artikel]) {
-        const k = normUrl(u);
-        if (k) m.set(k, nama);
+        const f = normUrl(u), pp = normPath(u);
+        if (f) full.set(f, nama);
+        if (pp) path.set(pp, nama);
       }
     }
-    return m;
+    return { full, path };
   }, [prodItems]);
+  // path tiap link_artikel artikel -> keyword — utk resolusi internal link relatif menuju artikel
+  const artPathMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const it of items) {
+      const pp = normPath(it.link_artikel);
+      if (pp) m.set(pp, (it.target_keyword || it.judul || '').trim());
+    }
+    return m;
+  }, [items]);
 
   // ===== EDIT POSISI (geser kotak bebas, tersimpan per project) =====
   // edit per KATEGORI: tiap grup punya tombol Edit Sendiri — tak lagi global
@@ -381,24 +393,28 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
       const src = nodeById.get(it.id)!;
       const all = splitLinks(it.internal_link);
       for (const u of all) {
-        const kwText = urlToKeyword(u, kwMap); // kwMap = URL link_artikel -> target_keyword (sumber sama dgn tab Konten)
+        const pathKey = normPath(u);
+        const prodName = prodMaps.full.get(normUrl(u)) || (pathKey ? prodMaps.path.get(pathKey) : undefined);
+        let kwText = urlToKeyword(u, kwMap); // URL penuh -> keyword (pola tab Konten)
+        // URL relatif /produk/x & /artikel-x: cari lewat path — sebelumnya tak pernah match krn beda format
+        if (prodName) kwText = prodName;
+        else if (pathKey && artPathMap.has(pathKey)) {
+          const mk = artPathMap.get(pathKey)!;
+          if (mk) kwText = mk;
+        }
         const lowered = kwText.toLowerCase();
         const targetId = lowerToId.get(lowered); // keyword resolusi -> id artikel (data sama dgn tab Konten)
         let tid: string;
-        if (targetId && targetId !== src.id) {
+        if (prodName) {
+          // tercatat di tabel products -> kolom PRODUK oranye, label nama produk asli
+          tid = phantom(lowered, prodName).id;
+          const p = probePhantom.get('x:' + lowered);
+          if (p) { p.colOverride = PRODUK_COL; p.kw = prodName; }
+        } else if (targetId && targetId !== src.id) {
           tid = targetId; // asli — ghost lokal dibuat saat penggabungan grup bila beda kategori
         } else {
-          // URL luar daftar artikel: cocokan dgn data produk dulu
-          const prodName = prodUrlMap.get(normUrl(u));
-          if (prodName) {
-            // ada di tabel products -> kolom PRODUK (label = nama produk asli)
-            tid = phantom(lowered, prodName).id;
-            const p = probePhantom.get('x:' + lowered);
-            if (p) { p.colOverride = PRODUK_COL; p.kw = prodName; }
-          } else {
-            // TIDAK tercatat sbg produk -> tampil sbg tujuan internal link biasa (dashed, kolom LAINNYA)
-            tid = phantom(lowered, kwText).id;
-          }
+          // TIDAK tercatat sbg produk (maupun artikel) -> ghost pgtn internal biasa (kolom LAINNYA)
+          tid = phantom(lowered, kwText).id;
         }
         if (!src.outIds.includes(tid)) src.outIds.push(tid);
       }
