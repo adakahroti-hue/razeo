@@ -69,7 +69,7 @@ const midY = (r: number) => rowY(r) + H / 2;
 
 type GNode = { id: string; kw: string; role: string; member: boolean; outIds: string[]; colOverride?: number };
 type Box = { x: number; y: number };
-type Graph = { pos: Map<string, Box>; edges: { d: string; black?: boolean }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[]; pairs?: { src: string; dst: string; black?: boolean }[] };
+type Graph = { pos: Map<string, Box>; edges: { d: string; black?: boolean; key?: string }[]; width: number; height: number; colHeaders: { x: number; w: number; label: string; cls: string }[]; pairs?: { src: string; dst: string; black?: boolean }[] };
 
 // ===== layout dgn layering incoming (kiri -> kanan) + rute panah lorong/lane =====
 function runLayout(nodes: GNode[]): Graph {
@@ -270,7 +270,7 @@ function runLayout(nodes: GNode[]): Graph {
 // ===== gerakkan node: terapkan geseran manual (dx,dy) di atas layout dasar =====
 // panah dihitung ulang dari posisi AKHIR tiap kotak — jalur sederhana (bezier maju,
 // lewat jalur atas utk arah mundur) supaya tak brenta dengan komputasi grid bawaan.
-function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): Graph {
+function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>, edgeFix: Record<string, { dx: number; dy: number }> = {}): Graph {
   const pos = new Map<string, Box>();
   let maxR = 0, maxB = 0;
   for (const [id, p] of base.pos) {
@@ -281,13 +281,15 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
     maxR = Math.max(maxR, x + W + PAD_X);
     maxB = Math.max(maxB, y + H + PAD_BOT);
   }
-  const edges: { d: string; black?: boolean }[] = [];
+  const edges: { d: string; black?: boolean; key?: string }[] = [];
   for (const pr of base.pairs || []) {
     const pa = pos.get(pr.src), pb = pos.get(pr.dst);
     if (!pa || !pb) continue;
     const x0 = pa.x + W + 6, y0 = pa.y + H / 2;
     const x1 = pb.x - 6,     y1 = pb.y + H / 2;
     let d: string;
+    // titik menempel garis — dipakai hanya saat garis manual digeser (ujung harus tetap di kotak)
+    let p0 = { x: x0, y: y0 }, p1 = { x: x1, y: y1 };
     // kartu sejajar hasil drag -> port ATAS/BAWAH lurus (hindari muter jalur atas)
     const xc0 = pa.x + W / 2, xc1 = pb.x + W / 2;
     let vert: string | null = null;
@@ -305,6 +307,7 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
         vert = Math.abs(xc0 - xc1) < 1.5
           ? `M ${xc0} ${a2} V ${b2}`
           : `M ${xc0} ${a2} C ${xc0} ${a2 + (down ? 16 : -16)}, ${xc1} ${b2 + (down ? -16 : 16)}, ${xc1} ${b2}`;
+        p0 = { x: xc0, y: a2 }; p1 = { x: xc1, y: b2 };
       }
     }
     if (vert) {
@@ -332,6 +335,7 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
           `V ${lane + 12} Q ${xup} ${lane}, ${xup - 12} ${lane} ` +
           `H ${xcT - 8} Q ${xcT} ${lane}, ${xcT} ${lane + 8} ` +
           `V ${topY}`;
+        p1 = { x: xcT, y: topY };
       } else {
         d =
           `M ${x0} ${y0} H ${xup - 10} Q ${xup} ${y0}, ${xup} ${y0 - 12} ` +
@@ -340,7 +344,19 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
           `V ${y1 - 12} Q ${x1} ${y1}, ${x1 - 10} ${y1} H ${x1}`;
       }
     }
-    edges.push(pr.black ? { d, black: true } : { d });
+    const eKey = `${pr.src}|${pr.dst}`;
+    const off = edgeFix[eKey];
+    if (off && (off.dx || off.dy)) {
+      // geser manual: garis jadi kurva 2 ruas MELEWATI waypoint bergeser —
+      // kedua ujung TETAP menempel di kotaknya (revisi Aldy utk bengkokkan garis)
+      const wx = (p0.x + p1.x) / 2 + off.dx, wy = (p0.y + p1.y) / 2 + off.dy;
+      const ax = p0.x + (wx - p0.x) * 0.45, ay = p0.y + (wy - p0.y) * 0.45;
+      const bx = wx - (wx - p0.x) * 0.45,  by = wy - (wy - p0.y) * 0.45;
+      const cx = wx + (p1.x - wx) * 0.45,  cy = wy + (p1.y - wy) * 0.45;
+      const dx2 = p1.x - (p1.x - wx) * 0.45, dy2 = p1.y - (p1.y - wy) * 0.45;
+      d = `M ${p0.x} ${p0.y} C ${ax} ${ay}, ${bx} ${by}, ${wx} ${wy} C ${cx} ${cy}, ${dx2} ${dy2}, ${p1.x} ${p1.y}`;
+    }
+    edges.push(pr.black ? { d, black: true, key: eKey } : { d, key: eKey });
   }
   return { ...base, pos, edges, width: Math.max(base.width, maxR), height: Math.max(base.height, maxB) };
 }
@@ -390,6 +406,8 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
   const [dragId, setDragId] = useState<string | null>(null);
   // fix = { kategori: { nodeId: {dx,dy} } } — offset dari posisi dasar layout
   const [fixes, setFixes] = useState<Record<string, Record<string, { dx: number; dy: number }>>>({});
+  // geseran garis (ujung tetap menempel, tengah/lekuk digeser): { kategori: { "src|dst": {dx,dy} } }
+  const [edgeFix, setEdgeFix] = useState<Record<string, Record<string, { dx: number; dy: number }>>>({});
   const projKey = (() => { try { return localStorage.getItem('razeo_project') || 'none'; } catch { return 'none'; } })();
 
   const loadFixes = async () => {
@@ -400,20 +418,31 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
       if (!res.ok) return;
       const d = await res.json().catch(() => ({}));
       if (d?.positions && typeof d.positions === 'object') {
+        // walik kategori palsu "__edges" jadi state garis terpisah biar fixes tetap murni kotak
+        const { __edges, ...catPos } = d.positions as Record<string, any>;
         // simpan Milik perubahan lokal (mis. belum sempat save) — lokal menang
-        setFixes((prev) => (Object.keys(prev).length ? { ...d.positions, ...prev } : d.positions));
+        setFixes((prev) => (Object.keys(prev).length ? { ...catPos, ...prev } : catPos));
+        if (__edges && typeof __edges === 'object') {
+          setEdgeFix((prev) => (Object.keys(prev).length ? { ...__edges, ...prev } : __edges));
+        }
       }
     } catch { /* server/down — tetap pakai posisi dasar */ }
   };
   useEffect(() => { loadFixes(); /* eslint-disable-next-line */ }, [projKey]);
   const fixRef = useRef(fixes);
   fixRef.current = fixes;
+  const edgeRef = useRef(edgeFix);
+  edgeRef.current = edgeFix;
   const saveTimer = useRef<number | null>(null);
   const scheduleSave = () => {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     // auto-save 800ms setelah gerakan terakhir (tab lama / crash tetap aman)
-    saveTimer.current = window.setTimeout(() => { void saveFixes(fixRef.current); }, 800);
+    saveTimer.current = window.setTimeout(() => { void saveGrad(fixRef.current, edgeRef.current); }, 800);
   };
+  // payload gadungan: garis via kategori "__edges" -> lolos validator API apa adanya
+  const buildPayload = (f: typeof fixes, ef: typeof edgeFix) =>
+    Object.keys(ef).length ? { ...f, __edges: ef } : f;
+  const saveGrad = (f: typeof fixes, ef: typeof edgeFix) => saveFixes(buildPayload(f, ef));
 
   const saveFixes = async (next: Record<string, Record<string, { dx: number; dy: number }>>) => {
     if (!authHeaders) return true;
@@ -628,11 +657,11 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
     const m: Record<string, Graph> = {};
     for (const g of shown) {
       const base = runLayout(g.all);
-      m[g.name] = withFix(base, fixes[g.name] || {});
+      m[g.name] = withFix(base, fixes[g.name] || {}, edgeFix[g.name] || {});
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown, openMap, fixes]);
+  }, [shown, openMap, fixes, edgeFix]);
 
   // offset geser kanvas per grup (drag area abu-abu kosong)
   const [pans, setPans] = useState<Record<string, { x: number; y: number }>>({});
@@ -697,6 +726,38 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [editMap]);
+
+  // ===== DRAAG GARIS (revisi Aldy): seret garis utk geser lekuk/tengahnya, ujung tetap menempel =====
+  const edgeDrag = useRef<{ key: string; cat: string; sx: number; sy: number; dx0: number; dy0: number } | null>(null);
+  const [dragEdge, setDragEdge] = useState<string | null>(null);
+  const applyEdgeFix = (cat: string, key: string, dx: number, dy: number) => {
+    setEdgeFix((prev) => {
+      const next = { ...prev };
+      const m = { ...(next[cat] || {}) };
+      if (!dx && !dy) delete m[key];
+      else m[key] = { dx, dy };
+      if (Object.keys(m).length) next[cat] = m; else delete next[cat];
+      return next;
+    });
+    scheduleSave();
+  };
+  const onEdgeDown = (e: React.PointerEvent, cat: string, key: string) => {
+    if (!editRef.current[cat]) return;      // kategori belum mode edit -> abaikan
+    e.preventDefault(); e.stopPropagation();  // jangan kena pan marquee kanvas
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    const cur = edgeRef.current[cat]?.[key] || { dx: 0, dy: 0 };
+    edgeDrag.current = { key, cat, sx: e.clientX, sy: e.clientY, dx0: cur.dx, dy0: cur.dy };
+    setDragEdge(key);
+  };
+  const onEdgeMove = (e: React.PointerEvent) => {
+    const g = edgeDrag.current; if (!g) return;
+    const z = zoomRef.current || 1;
+    const dx = g.dx0 + Math.round((e.clientX - g.sx) / z);
+    const dy = g.dy0 + Math.round((e.clientY - g.sy) / z);
+    if (dx === g.dx0 && dy === g.dy0) return;
+    applyEdgeFix(g.cat, g.key, dx, dy);
+  };
+  const onEdgeUp = () => { edgeDrag.current = null; setDragEdge(null); };
 
   const getFix = (cat: string, id: string) => fixes[cat]?.[id] || { dx: 0, dy: 0 };
   const setFix = (cat: string, id: string, dx: number, dy: number) => {
@@ -895,8 +956,11 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
                           const next = { ...fixRef.current };
                           delete next[g.name];
                           setFixes(next);
+                          const ne = { ...edgeRef.current };
+                          delete ne[g.name];
+                          setEdgeFix(ne);
                           if (saveTimer.current) { window.clearTimeout(saveTimer.current); saveTimer.current = null; }
-                          void saveFixes(next);
+                          void saveGrad(next, ne);
                         }}
                         className="ml-auto px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200"
                         title="Balikkan posisi kategori ini ke susunan otomatis"
@@ -996,7 +1060,22 @@ export default function VisualisasiTab({ loading, items, prodItems, authHeaders 
                         </marker>
                       </defs>
                       {lay!.edges.map((e, i) => (
-                        <path key={i} d={e.d} fill="none" stroke={e.black ? '#111111' : '#6366f1'} strokeWidth={e.black ? 1.4 : 1.1} strokeLinecap="round" markerEnd={`url(#${e.black ? 'rahb' : 'rah'}-${g.name.replace(/\W/g, '')})`} />
+                        <path key={i} d={e.d} fill="none" stroke={e.black ? '#111111' : '#6366f1'}
+                          strokeWidth={dragEdge && dragEdge === e.key ? 2.6 : (e.black ? 1.4 : 1.1)}
+                          strokeLinecap="round" markerEnd={`url(#${e.black ? 'rahb' : 'rah'}-${g.name.replace(/\W/g, '')})`} />
+                      ))}
+                      {/* mode edit: lapisan transparan 14px biar garis gampang diseret —
+                          ujung TETAP menempel kotak, cuma lekuk/tengah yang digeser (revisi Aldy) */}
+                      {ed && lay!.edges.map((e, i) => (
+                        <path key={'hit-' + i} d={e.d} fill="none" stroke="transparent" strokeWidth={14} strokeLinecap="round"
+                          style={{ pointerEvents: dragEdge && dragEdge !== e.key ? 'none' : 'stroke', cursor: 'move' }}
+                          onPointerDown={(ev) => onEdgeDown(ev, g.name, e.key || String(i))}
+                          onPointerMove={onEdgeMove}
+                          onPointerUp={onEdgeUp}
+                          onPointerCancel={onEdgeUp}
+                        >
+                          <title>Seret garis untuk menggeser lekuknya — ujung tetap menempel di kotak</title>
+                        </path>
                       ))}
                     </svg>
                     {g.all.map((k) => {

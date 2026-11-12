@@ -17,7 +17,6 @@ interface Props {
   ctrStats: any
   data: any
   downloadAiPDF: any
-  downloadAllPositionsCsv: any
   downloadConsolidationPDF: any
   downloadCtaPDF: any
   downloadEnrichmentPDF: any
@@ -86,7 +85,6 @@ export default function DashboardTab({
   ctrStats,
   data,
   downloadAiPDF,
-  downloadAllPositionsCsv,
   downloadConsolidationPDF,
   downloadCtaPDF,
   downloadEnrichmentPDF,
@@ -205,15 +203,7 @@ export default function DashboardTab({
                     <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Filters:</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={downloadAllPositionsCsv}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-sm hover:shadow-md active:scale-95"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download All URLs (Pos 1-8)
-                  </button>
-                </div>
+
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">

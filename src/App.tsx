@@ -99,16 +99,16 @@ const AUDIT_ROLES: Array<{ id: AuditRole; label: string }> = [
 ];
 
 const AUDIT_TABS: Array<{ id: string; label: string; icon: any }> = [
-  { id: 'ctr', label: 'CTR Analysis', icon: MousePointer2 },
+  { id: 'ctr', label: 'CTR', icon: MousePointer2 },
   { id: 'lhf', label: 'Low Hanging Fruit', icon: Target },
   { id: 'declining', label: 'Declining', icon: TrendingUp },
   { id: 'zero', label: 'Zero Traffic', icon: AlertCircle },
   { id: 'enrichment', label: 'Enrichment', icon: Target },
-  { id: 'ai', label: 'AI Search', icon: Search },
+  { id: 'ai', label: 'AI', icon: Search },
   { id: 'consolidation', label: 'Consolidation', icon: Filter },
-  { id: 'scroll', label: 'Scroll Optimization', icon: TrendingUp },
-  { id: 'er', label: 'ER Optimization', icon: BarChart3 },
-  { id: 'cta', label: 'CTA Optimization', icon: MousePointer2 },
+  { id: 'scroll', label: 'Scroll', icon: TrendingUp },
+  { id: 'er', label: 'ER', icon: BarChart3 },
+  { id: 'cta', label: 'CTA', icon: MousePointer2 },
 ];
 
 // Navigasi utama — chip di header lama, pindah ke sidebar kiri
@@ -1272,7 +1272,7 @@ export default function App() {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(5, 150, 105); // emerald-600
-    doc.text('Scroll Optimization Report', 14, 22);
+    doc.text('Scroll Report', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128); // gray-500
@@ -1323,7 +1323,7 @@ export default function App() {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(5, 150, 105); // emerald-600
-    doc.text('ER Optimization Report', 14, 22);
+    doc.text('ER Report', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128); // gray-500
@@ -1365,7 +1365,7 @@ export default function App() {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(5, 150, 105); // emerald-600
-    doc.text('CTA Optimization Report', 14, 22);
+    doc.text('CTA Report', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128); // gray-500
@@ -2880,23 +2880,36 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
               </div>
             )}
 
-            {/* Tab role tab Optimasi (Semua | Inspire | Educate | Convert) — di header */}
+            {/* Tab role tab Optimasi — SEMUA rata KIRI; Inspire/Educate/Convert TETAP di tengah */}
             {currentTab === 'dashboard' && (
-              <div className="flex flex-1 items-center justify-center gap-1.5 min-w-0 overflow-x-auto">
-                {AUDIT_ROLES.map((r: any) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setAuditRole(r.id)}
-                    className={cn(
-                      'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap',
-                      auditRole === r.id
-                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
+              <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                <button
+                  onClick={() => setAuditRole('inspect')}
+                  className={cn(
+                    'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap',
+                    auditRole === 'inspect'
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
+                  )}
+                >
+                  Semua
+                </button>
+                <div className="flex flex-1 items-center justify-center gap-1.5 min-w-0 overflow-x-auto">
+                  {AUDIT_ROLES.filter((r: any) => r.id !== 'inspect').map((r: any) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setAuditRole(r.id)}
+                      className={cn(
+                        'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap',
+                        auditRole === r.id
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -2976,6 +2989,17 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                     </div>
                   )}
                 </div>
+
+          {/* Ekspor CTR — hanya ikon, sebelah kanan pill tanggal (revisi Aldy) */}
+          {currentTab === 'dashboard' && (
+            <button
+              onClick={downloadAllPositionsCsv}
+              className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm"
+              title="Download All URLs (Pos 1-8)"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          )}
 
                 {/* Compare & refresh kini berada di dalam popup rentang tanggal */}
               </>
@@ -3305,7 +3329,6 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
             ctrStats={ctrStats}
             data={data}
             downloadAiPDF={downloadAiPDF}
-            downloadAllPositionsCsv={downloadAllPositionsCsv}
             downloadConsolidationPDF={downloadConsolidationPDF}
             downloadCtaPDF={downloadCtaPDF}
             downloadEnrichmentPDF={downloadEnrichmentPDF}
