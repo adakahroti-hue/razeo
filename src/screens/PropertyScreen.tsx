@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import { AlertCircle, Globe, RefreshCw, Search, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -49,11 +48,7 @@ export default function PropertyScreen(props: Props) {
           </button>
         </div>
       )}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full p-8 rounded-3xl bg-white border border-gray-200 shadow-2xl space-y-6"
-      >
+      <div className="anim-pop max-w-md w-full p-8 rounded-3xl bg-white border border-gray-200 shadow-2xl space-y-6">
         <div className="text-center">
           <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Globe className="w-8 h-8 text-emerald-600" />
@@ -169,7 +164,7 @@ export default function PropertyScreen(props: Props) {
             ? <RefreshCw className="w-5 h-5 animate-spin" />
             : projectRole === 'owner' ? 'Simpan Koneksi & Mulai Audit' : 'Mulai Audit'}
         </button>
-      </motion.div>
+      </div>
     </div>
   );
 }

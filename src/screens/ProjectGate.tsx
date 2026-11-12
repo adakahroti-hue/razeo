@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { AlertCircle, ArrowRight, BarChart3, LogOut, Pencil, Plus, Search, Trash2, X, RefreshCw, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -143,12 +142,7 @@ export default function ProjectGate(props: Props) {
 
       {/* === KARTU PUSAT === */}
       <main className="relative z-10 flex-1 flex items-start justify-center p-5">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="w-full max-w-[720px] mt-10 bg-white rounded-3xl border border-gray-200 shadow-xl shadow-gray-400/40 p-7 sm:px-8"
-        >
+        <div className="anim-rise w-full max-w-[720px] mt-10 bg-white rounded-3xl border border-gray-200 shadow-xl shadow-gray-400/40 p-7 sm:px-8">
           <div className="text-center">
             <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-emerald-500" />
@@ -284,7 +278,7 @@ export default function ProjectGate(props: Props) {
               );
             })}
           </div>
-        </motion.div>
+        </div>
       </main>
 
       {/* FAB project baru */}
@@ -299,11 +293,9 @@ export default function ProjectGate(props: Props) {
       {/* === MODAL BUAT PROJECT === */}
       {showCreate && (
         <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-5" onClick={() => setShowCreate(false)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl"
+            className="anim-pop w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Project Baru</h3>
@@ -337,18 +329,16 @@ export default function ProjectGate(props: Props) {
                 Batal
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
       {/* === MODAL KONFIRMASI HAPUS === */}
       {delTarget && (
         <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-5" onClick={() => setDelTarget(null)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl"
+            className="anim-pop w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
@@ -376,7 +366,7 @@ export default function ProjectGate(props: Props) {
                 Batal
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
     </div>

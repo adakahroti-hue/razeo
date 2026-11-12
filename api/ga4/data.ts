@@ -68,6 +68,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ totalUsers: total, newUsers: fresh, returningUsers: returning, returningPct });
     }
 
+    // ===== Mode BACKLINKS (tab Insight): link masuk dari situs luar =====
+    // Sumber: GA4 `pageReferrer` = halaman yang dibuka SEBELUM pengunjung masuk ke
+    // halaman kita (diambil saat sesi dimulai). Jadi tiap baris = satu "mention":
+    //   referrer = halaman di situs lain tempat link berada
+    //   page     = halaman web kita yang dituju link itu
+    // Catatan jujur: ini tercatat dari KUNJUNGAN NYATA (yang diklik), bukan semua
+    // backlink yang ada di internet (itu perlu layanan indeks backlink terpisah).
+    if (String(action || "") === "backlinks") {
+      const r = await analyticsdata.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: {
+          dateRanges: [{ startDate: startDate as string, endDate: endDate as string }],
+          dimensions: [{ name: "pageReferrer" }, { name: "pagePath" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "500",
+        },
+      });
+      const items = (r.data?.rows || [])
+        .map((row: any) => ({
+          referrer: row.dimensionValues?.[0]?.value || "",
+          page: row.dimensionValues?.[1]?.value || "/",
+          sessions: Number(row.metricValues?.[0]?.value || 0),
+        }))
+        .filter((x: any) => {
+          const ref = String(x.referrer).trim();
+          if (!ref) return false;
+          // direct / (not set) bukan backlink
+          if (/^\((not set|direct)/i.test(ref)) return false;
+          return true;
+        });
+      return res.status(200).json({ items });
+    }
+
     // ===== Mode PAGES (tab Overview): 3 halaman teratas utk kelompok yg diklik =====
     if (String(action || "") === "pages") {
       const dim = (String(req.query.dimension || "") || "").trim();

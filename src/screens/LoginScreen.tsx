@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import { AlertCircle, BarChart3, ChevronRight, Globe, RefreshCw, Search, Target, X, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -83,11 +82,7 @@ export default function LoginScreen({ error, setError, user, handleLogin, isLogg
           <div className="absolute top-40 -right-24 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
           <div className="mx-auto max-w-6xl px-6 pt-20 pb-24 text-center relative">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
+            <div className="anim-rise">
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-wide shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 SEO Content Audit untuk Google Search Console & GA4
@@ -174,7 +169,7 @@ export default function LoginScreen({ error, setError, user, handleLogin, isLogg
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </section>
 
@@ -186,20 +181,16 @@ export default function LoginScreen({ error, setError, user, handleLogin, isLogg
           </div>
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES.map((f, i) => (
-              <motion.div
+              <div
                 key={i}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.06 }}
-                className="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+                className="anim-rise p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center mb-4', f.bg)}>
                   <f.icon className={cn('w-6 h-6', f.color)} />
                 </div>
                 <h3 className="font-semibold text-gray-900">{f.title}</h3>
                 <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{f.desc}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </section>

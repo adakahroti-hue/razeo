@@ -32,27 +32,12 @@ import {
   UserPlus,
   X
 } from 'lucide-react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area,
-  BarChart,
-  Bar,
-  Cell,
-  PieChart,
-  Pie
-} from 'recharts';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import LoginScreen from './screens/LoginScreen';
-import ProjectGate from './screens/ProjectGate';
-import PropertyScreen from './screens/PropertyScreen';
+// Perf: recharts & motion keluar dari entry — App cuma pake ikon BarChart3 (lucide),
+// tanpa <BarChart>. 3 screen dibikin lazy supaya tak ikut nimbang payload awal.
+const LoginScreen = React.lazy(() => import('./screens/LoginScreen'));
+const ProjectGate = React.lazy(() => import('./screens/ProjectGate'));
+const PropertyScreen = React.lazy(() => import('./screens/PropertyScreen'));
 import type { ContentItem } from './tabs/KontenTab';
 import type { ProductItem } from './tabs/ProdukKonten';
 import type { BundleItem } from './tabs/BundleKonten';
@@ -1508,7 +1493,7 @@ export default function App() {
 
   // ===== Tab OVERVIEW: muat ringkasan GSC + GA4 (filter durasi pakai startDate/endDate) =====
     // ===== Tab Insight (branding + returning user) =====
-  const [insight, setInsight] = useState<{ branded: any; users: any } | null>(null);
+  const [insight, setInsight] = useState<{ branded: any; users: any; backlinks: any } | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightNote, setInsightNote] = useState<string | null>(null);
   const loadInsight = async (sd = startDate, ed = endDate) => {
@@ -1530,6 +1515,7 @@ export default function App() {
     } catch (e: any) { gscErr = e?.message || 'GSC gagal dimuat'; }
     // GA4: total/new/returning users → % returning (opsional: property belum dipilih = kosong)
     let users: any = null;
+    let backlinks: any = { items: [] };
     let ga4Err: string | null = null;
     const pid = selectedGa4Property?.split('/').pop();
     if (pid) {
@@ -1538,8 +1524,14 @@ export default function App() {
         if (r.ok) users = await r.json();
         else ga4Err = (await r.json().catch(() => ({})))?.error || `GA4 (${r.status})`;
       } catch (e: any) { ga4Err = e?.message || 'GA4 gagal dimuat'; }
+      // link masuk (backlink) — sumber sama: GA4 pageReferrer; gagal = kosong, tab tetap tampil
+      backlinks = { items: [] };
+      try {
+        const r = await fetch(`/api/ga4/data?action=backlinks&propertyId=${pid}&startDate=${sd}&endDate=${ed}`, { headers });
+        if (r.ok) backlinks = await r.json();
+      } catch { /* opsional */ }
     }
-    setInsight({ branded, users });
+    setInsight({ branded, users, backlinks });
     setInsightNote([gscErr, ga4Err].filter(Boolean).join(' • ') || null);
     setInsightLoading(false);
   };
@@ -3210,7 +3202,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
 
       <main className="max-w-[1600px] mx-auto p-6">
         <React.Suspense fallback={<div className="py-16 text-center text-gray-400 text-sm">Memuat tab…</div>}>
-        <AnimatePresence mode="wait">
+        
           {currentTab === 'cek' && (
             <div key="cek">
               <LazyCekTab loading={cekLoading} data={cekData} kind={cekKind} onKind={setCekKind} />
@@ -3240,6 +3232,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                 loading={insightLoading}
                 branded={insight?.branded ?? null}
                 users={insight?.users ?? null}
+                backlinks={insight?.backlinks ?? null}
                 error={insightNote}
                 brandedKeywords={evCfg.branded || []}
                 onRefresh={() => loadInsight()}
@@ -3379,7 +3372,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
             exportLogsToPDF={exportLogsToPDF}
           />
         )}
-      </AnimatePresence>
+      
 
       <LazyAksiAddLogModal
         data={data}
@@ -3395,10 +3388,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
       <footer className="max-w-[1600px] mx-auto p-8 border-t border-gray-200 mt-12 text-center text-gray-400 text-sm font-medium">
       {showInvite && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setShowInvite(false)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6"
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 anim-pop"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -3428,7 +3418,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                 </div>
               </div>
             ) : null}
-          </motion.div>
+          </div>
         </div>
       )}
       </footer>

@@ -48,3 +48,9 @@
 .wp-article .has-text-align-center { text-align: center; }
 .wp-article .has-text-align-right { text-align: right; }
 .wp-article .wp-caption { max-width: 100%; }
+/* ===== Animasi ringan pengganti motion — payload awal jauh lebih kecil ===== */
+@keyframes vh-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes vh-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.anim-rise { animation: vh-rise 0.5s ease-out both; }
+.anim-pop { animation: vh-pop 0.3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .anim-rise, .anim-pop { animation: none; } }
