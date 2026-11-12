@@ -225,17 +225,38 @@ function runLayout(nodes: GNode[]): Graph {
           `V ${y1 - dir * R} Q ${at} ${y1}, ${at + R} ${y1} ` +
           `H ${x1}`;
       } else {
-        // backward / same: keluar kanan -> naik ke lane atas (ruang kosong antara label & baris pertama) -> turun di gap kiri target -> masuk kiri
+        // backward / same: keluar kanan -> naik ke lane atas -> mendatar di lane
+        // -> lurus TURUN ke tepi ATAS target (pucung panah hijau). Bila ruang di atas
+        // target kejebak kartu lain -> rute lama (turun di gap kiri -> masuk kiri).
         const lane = LANE_MIN + (li % 4) * LANE_STEP;
         const gQ = Math.max(colStart.get(cb)! - 16, colX(cb) - 16); // gap sblm blok target
         const xup = x0 + 14;
-        d =
-          `M ${x0} ${y0} ` +
-          `H ${xup - R} Q ${xup} ${y0}, ${xup} ${y0 - R} ` +
-          `V ${lane + R} Q ${xup} ${lane}, ${xup + R} ${lane} ` +
-          `H ${gQ - R} Q ${gQ} ${lane}, ${gQ} ${lane + R} ` +
-          `V ${y1 - R} Q ${gQ} ${y1}, ${gQ + R} ${y1} ` +
-          `H ${x1}`;
+        const xcT = pb.x + W / 2;   // tengah kartu target
+        const topY = pb.y - E;       // tepi atas target (ujung panah vertikal)
+        let viaTop = topY > lane + 8;
+        if (viaTop) {
+          const cLo = xcT - 6, cHi = xcT + 6;
+          for (const p of pos.values()) {
+            if (p.x < cHi && cLo < p.x + W && p.y < topY - 1 && lane + 1 < p.y + H) { viaTop = false; break; }   // kartu di jalur turun target
+            if (p.x < xup + 1 && cLo < p.x + W && p.y < lane + 1 && lane - 1 < p.y + H) { viaTop = false; break; } // kartu dilewati jalur lane
+          }
+        }
+        if (viaTop) {
+          d =
+            `M ${x0} ${y0} ` +
+            `H ${xup - R} Q ${xup} ${y0}, ${xup} ${y0 - R} ` +
+            `V ${lane + R} Q ${xup} ${lane}, ${xup + R} ${lane} ` +
+            `H ${xcT - R} Q ${xcT} ${lane}, ${xcT} ${lane + R} ` +
+            `V ${topY}`;
+        } else {
+          d =
+            `M ${x0} ${y0} ` +
+            `H ${xup - R} Q ${xup} ${y0}, ${xup} ${y0 - R} ` +
+            `V ${lane + R} Q ${xup} ${lane}, ${xup + R} ${lane} ` +
+            `H ${gQ - R} Q ${gQ} ${lane}, ${gQ} ${lane + R} ` +
+            `V ${y1 - R} Q ${gQ} ${y1}, ${gQ + R} ${y1} ` +
+            `H ${x1}`;
+        }
       }
       const black = roleCol[a] === ROLE_RANK.educate && (roleCol[b] === PRODUK_COL || nodes[b].colOverride === PRODUK_COL);
       edges.push({ d, ...(black ? { black: true } : {}) });
@@ -292,14 +313,32 @@ function withFix(base: Graph, fix: Record<string, { dx: number; dy: number }>): 
       const m = (x1 - x0) * 0.45;
       d = `M ${x0} ${y0} C ${x0 + m} ${y0}, ${x1 - m} ${y1}, ${x1} ${y1}`;
     } else {
-      // maju tak jalan (mundur / overlap) → lewat jalur atas dua kotak
+      // maju tak jalan (mundur / overlap) → lewat jalur atas: lurus turun ke tepi ATAS target.
+      // Bila ruangnya kejepi kartu lain → jatuh balik ke jalur lama (masuk sisi kiri target).
       const lane = Math.max(6, Math.min(y0, y1) - 26);
       const xup = Math.max(x0 + 18, x1 + W + 18);
-      d =
-        `M ${x0} ${y0} H ${xup - 10} Q ${xup} ${y0}, ${xup} ${y0 - 12} ` +
-        `V ${lane + 12} Q ${xup} ${lane}, ${xup - 12} ${lane} ` +
-        `H ${x1 + 12} Q ${x1} ${lane}, ${x1} ${lane + 12} ` +
-        `V ${y1 - 12} Q ${x1} ${y1}, ${x1 - 10} ${y1} H ${x1}`;
+      const xcT = pb.x + W / 2, topY = pb.y - 6;
+      let viaTopM = topY > lane + 8;
+      if (viaTopM) {
+        const cLo = xcT - 6, cHi = xcT + 6;
+        for (const p of pos.values()) {
+          if (p.x < cHi && cLo < p.x + W && p.y < topY - 1 && lane + 1 < p.y + H) { viaTopM = false; break; }
+          if (p.x < xup + 1 && cLo < p.x + W && p.y < lane + 1 && lane - 1 < p.y + H) { viaTopM = false; break; }
+        }
+      }
+      if (viaTopM) {
+        d =
+          `M ${x0} ${y0} H ${xup - 10} Q ${xup} ${y0}, ${xup} ${y0 - 12} ` +
+          `V ${lane + 12} Q ${xup} ${lane}, ${xup - 12} ${lane} ` +
+          `H ${xcT - 8} Q ${xcT} ${lane}, ${xcT} ${lane + 8} ` +
+          `V ${topY}`;
+      } else {
+        d =
+          `M ${x0} ${y0} H ${xup - 10} Q ${xup} ${y0}, ${xup} ${y0 - 12} ` +
+          `V ${lane + 12} Q ${xup} ${lane}, ${xup - 12} ${lane} ` +
+          `H ${x1 + 12} Q ${x1} ${lane}, ${x1} ${lane + 12} ` +
+          `V ${y1 - 12} Q ${x1} ${y1}, ${x1 - 10} ${y1} H ${x1}`;
+      }
     }
     edges.push(pr.black ? { d, black: true } : { d });
   }
