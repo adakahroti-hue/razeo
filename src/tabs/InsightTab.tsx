@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Users, Search, RefreshCw, Tag, UserRoundCheck, UserPlus, UserRound, Link2 } from 'lucide-react';
+import { Sparkles, Users, Search, RefreshCw, Tag, UserRoundCheck, UserPlus, UserRound, Link2, Gauge } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   users: { totalUsers: number; newUsers: number; returningUsers: number; returningPct: number } | null;
   /** link masuk dari situs luar (GA4 pageReferrer) — { items: [{referrer, page, sessions}] } */
   backlinks?: { items: { referrer: string; page: string; sessions: number }[] } | null;
+  /** hasil ukur Lighthouse (cron harian) — { site, cwv: { measured_at, score, metrics, fixes } } */
+  cwv?: { site: string | null; cwv: any } | null;
   error?: string | null;
   /** daftar keyword branded dari Pengaturan (Pengaturan Event) — dipakai tombol muat ulang */
   brandedKeywords?: string[];
@@ -17,13 +19,27 @@ type Props = {
 
 const fmt = (n: number) => Number(n || 0).toLocaleString('id-ID');
 const pct = (n: number) => `${Number(n || 0).toFixed(1)}%`;
+/** status metrik CWV vs ambang resmi web.dev: baik / perlu perbaikan / buruk */
+function cwvStatus(kind: 'lcp' | 'cls' | 'tbt' | 'fcp', v: number): 'baik' | 'sedang' | 'buruk' {
+  if (kind === 'lcp') return v <= 2.5 ? 'baik' : v <= 4 ? 'sedang' : 'buruk';
+  if (kind === 'cls') return v <= 0.1 ? 'baik' : v <= 0.25 ? 'sedang' : 'buruk';
+  if (kind === 'tbt') return v <= 200 ? 'baik' : v <= 600 ? 'sedang' : 'buruk'; // proksi INP (lab)
+  return v <= 1.8 ? 'baik' : v <= 3 ? 'sedang' : 'buruk'; // FCP
+}
+const CWV_TONE: Record<string, string> = {
+  baik: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  sedang: 'bg-amber-50 text-amber-700 border-amber-100',
+  buruk: 'bg-rose-50 text-rose-700 border-rose-100',
+};
+const fmtBytes = (n: number) => n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`;
+
 /** https://www.contoh.com/artikel/x -> contoh.com (untuk nama situs sumber) */
 function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url.split('/')[0] || url; }
 }
 
 
-export default function InsightTab({ loading, branded, users, backlinks, error, brandedKeywords = [], onRefresh }: Props) {
+export default function InsightTab({ loading, branded, users, backlinks, cwv, error, brandedKeywords = [], onRefresh }: Props) {
   if (loading && !branded && !users) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl px-4 py-8 text-center text-gray-400 text-sm">Memuat insight...</div>
@@ -242,6 +258,92 @@ export default function InsightTab({ loading, branded, users, backlinks, error, 
         )}
       </section>
 
+      {/* ===== D. CORE WEB VITALS — ukur Lighthouse harian (cron), sumber data lokal ===== */}
+      <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+          <span className="w-9 h-9 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
+            <Gauge className="w-4 h-4 text-sky-600" />
+          </span>
+          <div>
+            <h3 className="font-bold text-sm text-gray-900">Core Web Vitals</h3>
+            <p className="text-[11px] text-gray-400">
+              Kesehatan halaman &amp; apa yang perlu diperbaiki — diukur harian (Lighthouse)
+            </p>
+          </div>
+          {cwv?.cwv && (
+            <span className="ml-auto inline-block px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[11px] font-bold">
+              Skor {cwv.cwv.score} · {cwv.cwv.measured_at ? new Date(cwv.cwv.measured_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+            </span>
+          )}
+        </div>
+
+        {!cwv?.cwv ? (
+          <div className="px-5 py-10 text-center text-sm text-gray-400">
+            <Gauge className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+            {cwv?.site
+              ? <>Belum ada pengukuran — pengukuran harian berjalan otomatis, hasil muncul setelah run pertama.</>
+              : <>Data belum tersedia — pastikan project sudah connect &amp; migrasi SQL 0014 dijalankan.</>}
+          </div>
+        ) : (
+          <>
+            {/* 4 metrik utama + ambang resmi */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-5 border-b border-gray-50">
+              {([
+                ['lcp', 'LCP', 'Largest Contentful Paint', 'waktunya konten utama tampil', 's'],
+                ['cls', 'CLS', 'Cumulative Layout Shift', 'geser-geser layout tak diinginkan', ''],
+                ['tbt', 'TBT', 'Total Blocking Time', 'proksi INP — waktu JS memblokir interaksi', 'ms'],
+                ['fcp', 'FCP', 'First Contentful Paint', 'goresan konten pertama', 's'],
+              ] as const).map(([key, label, full, desc, unit]) => {
+                const m = cwv.cwv.metrics?.[key];
+                const st = m ? cwvStatus(key as any, Number(m.value)) : 'sedang';
+                return (
+                  <div key={key} className={cn('rounded-xl border p-4', CWV_TONE[st])}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] uppercase tracking-wide font-bold">{label}</span>
+                      <span className="text-[10px] font-black uppercase">{st === 'baik' ? 'Baik' : st === 'sedang' ? 'Perlu perbaikan' : 'Buruk'}</span>
+                    </div>
+                    <div className="text-2xl font-extrabold mt-1">
+                      {m ? `${m.value}${unit}` : '—'}
+                    </div>
+                    <div className="text-[10px] mt-1 opacity-80" title={full}>{desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* daftar yang perlu diperbaiki */}
+            <div className="px-5 pt-4 pb-1 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-gray-800">Yang perlu diperbaiki</h4>
+              <span className="text-[11px] text-gray-400">{(cwv.cwv.fixes || []).length} temuan</span>
+            </div>
+            {(cwv.cwv.fixes || []).length === 0 ? (
+              <div className="px-5 pb-6 pt-2 text-sm text-gray-400">Tidak ada temuan — halaman dalam kondisi sehat 🎉</div>
+            ) : (
+              <ul className="px-5 pb-5 pt-1 space-y-2">
+                {(cwv.cwv.fixes || []).map((f: any) => (
+                  <li key={f.id} className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                    <span className={cn('mt-0.5 shrink-0 w-2 h-2 rounded-full', f.score <= 0.5 ? 'bg-rose-500' : 'bg-amber-500')} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-gray-800">{f.title}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        {f.savingsMs ? `hemat ±${Math.round(f.savingsMs)} ms` : ''}
+                        {f.savingsBytes ? `hemat ±${fmtBytes(f.savingsBytes)}` : ''}
+                        {f.display ? ` · ${f.display}` : ''}
+                        {f.savingsMs || f.savingsBytes ? '' : ' · perlu tinjauan manual'}
+                      </div>
+                    </div>
+                    <span className={cn('shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold border',
+                      f.score <= 0.5 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-amber-50 border-amber-100 text-amber-600')}>
+                      {Math.round((f.score || 0) * 100)}/100
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
+
       {/* sumber data */}
       <p className="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-4">
         <span>Branding → Search Console, keyword dari Pengaturan &rarr; Pengaturan Event</span>
@@ -249,6 +351,8 @@ export default function InsightTab({ loading, branded, users, backlinks, error, 
         <span>Returning User &rarr; GA4 (returningUsers; fallback kalau ditolak: activeUsers - newUsers)</span>
         <span className="text-gray-300">|</span>
         <span>Backlink &rarr; GA4 pageReferrer (halaman luar &rarr; halaman web)</span>
+        <span className="text-gray-300">|</span>
+        <span>Core Web Vitals &rarr; Lighthouse lokal (ukur harian, bukan PageSpeed API)</span>
       </p>
     </motion.div>
   );

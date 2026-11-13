@@ -330,7 +330,7 @@ export default function DashboardTab({
                                               }))
                                               .filter(p => p.ctr < avgCtr)
                                               .sort((a, b) => b.impressions - a.impressions)
-                                              .slice(0, 50);
+                                              .slice(0, 5); // 5 impresi tertinggi per posisi (revisi Aldy)
 
                                             if (results.length === 0) {
                                               return (

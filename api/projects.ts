@@ -584,6 +584,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      // --- Core Web Vitals (kartu tab Insight): baca pengukuran Lighthouse tersimpan ---
+      // Sumber: cron harian mengukur via Lighthouse lokal -> tabel site_cwv (migrasi 0014).
+      if (action === "cwv") {
+        const info = await requireProject(user.uid, req);
+        if (!info) return res.status(404).json({ error: "Bukan anggota project ini" });
+        const gsc = info.connection?.gsc_site || "";
+        // hostname dari gsc_site, mis. "https://daykit.id/" -> "daykit.id"
+        let host = "";
+        try { host = new URL(gsc).hostname.replace(/^www\./, ""); } catch { host = gsc.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, ""); }
+        if (!host) return res.status(200).json({ site: null, note: "Project belum connect Search Console" });
+        const { data, error } = await supabase
+          .from("site_cwv")
+          .select("site, measured_at, score, metrics, fixes, lighthouse_version")
+          .eq("site", host)
+          .maybeSingle();
+        if (error) {
+          if (String(error.message).includes("relation") || error.code === "42P01")
+            return res.status(500).json({ error: "Tabel site_cwv belum ada — jalankan migrasi SQL 0014 di Supabase" });
+          return res.status(500).json({ error: error.message });
+        }
+        return res.status(200).json({ site: host, cwv: data || null });
+      }
+
       // --- simpan/connect properti GSC & GA4 (HANYA pemilik project) ---
       if (action === "connection-save") {
         const info = await requireProject(user.uid, req);

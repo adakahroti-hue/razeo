@@ -1491,7 +1491,7 @@ export default function App() {
 
   // ===== Tab OVERVIEW: muat ringkasan GSC + GA4 (filter durasi pakai startDate/endDate) =====
     // ===== Tab Insight (branding + returning user) =====
-  const [insight, setInsight] = useState<{ branded: any; users: any; backlinks: any } | null>(null);
+  const [insight, setInsight] = useState<{ branded: any; users: any; backlinks: any; cwv: any } | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightNote, setInsightNote] = useState<string | null>(null);
   const loadInsight = async (sd = startDate, ed = endDate) => {
@@ -1529,8 +1529,16 @@ export default function App() {
         if (r.ok) backlinks = await r.json();
       } catch { /* opsional */ }
     }
-    setInsight({ branded, users, backlinks });
-    setInsightNote([gscErr, ga4Err].filter(Boolean).join(' • ') || null);
+    // Core Web Vitals: hasil ukur Lighthouse tersimpan (cron harian) — gagal = kartu kosong
+    let cwv: any = null;
+    let cwvErr: string | null = null;
+    try {
+      const r = await fetch('/api/projects', { method: 'POST', headers, body: JSON.stringify({ action: 'cwv' }) });
+      if (r.ok) cwv = await r.json();
+      else cwvErr = (await r.json().catch(() => ({})))?.error || `CWV (${r.status})`;
+    } catch (e: any) { cwvErr = e?.message || 'CWV gagal dimuat'; }
+    setInsight({ branded, users, backlinks, cwv });
+    setInsightNote([gscErr, ga4Err, cwvErr].filter(Boolean).join(' • ') || null);
     setInsightLoading(false);
   };
 const loadOverview = async (sd = startDate, ed = endDate) => {
@@ -3265,6 +3273,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                 branded={insight?.branded ?? null}
                 users={insight?.users ?? null}
                 backlinks={insight?.backlinks ?? null}
+                cwv={insight?.cwv ?? null}
                 error={insightNote}
                 brandedKeywords={evCfg.branded || []}
                 onRefresh={() => loadInsight()}
