@@ -17,7 +17,6 @@ import {
   Globe,
   History,
   LogOut,
-  Network,
   MousePointer2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -118,7 +117,6 @@ const TAB_LIST: Array<{ id: TabId; label: string; icon: any }> = [
   { id: 'cek', label: 'Cek', icon: Eye },
   { id: 'dashboard', label: 'Optimasi', icon: Target },
   { id: 'konten', label: 'Konten', icon: FileText },
-  { id: 'visualisasi', label: 'Visualisasi', icon: Network },
   { id: 'task', label: 'Task', icon: ListTodo },
   { id: 'tracker', label: 'Perubahan', icon: History },
 ];
@@ -130,10 +128,10 @@ const PATH_VIEWS: Record<string, 'login' | 'project' | 'select' | 'dashboard'> =
 };
 
 // ===== slug URL per tab (sesuai nama tab, huruf kecil tanpa spasi) =====
-type TabId = 'overview' | 'insight' | 'cek' | 'dashboard' | 'konten' | 'visualisasi' | 'task' | 'tracker' | 'pengaturan';
+type TabId = 'overview' | 'insight' | 'cek' | 'dashboard' | 'konten' | 'task' | 'tracker' | 'pengaturan';
 const TAB_PATHS: Record<TabId, string> = {
   overview: '/overview', insight: '/insight', cek: '/cek', dashboard: '/optimasi', konten: '/konten',
-  visualisasi: '/visualisasi', task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
+  task: '/task', tracker: '/perubahan', pengaturan: '/pengaturan',
 };
 const TAB_IDS = Object.keys(TAB_PATHS) as TabId[];
 const segToTab = (pathname: string): TabId | null => {
@@ -292,7 +290,7 @@ export default function App() {
   const [bundleItems, setBundleItems] = useState<BundleItem[]>([]);
   const [bundleLoading, setBundleLoading] = useState(false);
   // sub-bab Tab Konten: artikel | produk (tampil di header)
-  const [kontenSub, setKontenSub] = useState<'artikel' | 'produk' | 'bundle'>('artikel');
+  const [kontenSub, setKontenSub] = useState<'artikel' | 'produk' | 'bundle' | 'visualisasi'>('artikel');
   // Overview (ringkasan performa)
   const [ovData, setOvData] = useState<any>(null);
   const [ovLoading, setOvLoading] = useState(false);
@@ -1734,7 +1732,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
         if (selectedSite && data.length === 0) fetchData(selectedSite); // isi data dashboard kalau belum ada
       }
     }
-    if (viewState === 'dashboard' && (currentTab === 'konten' || currentTab === 'visualisasi')) loadContent();
+    if (viewState === 'dashboard' && currentTab === 'konten') loadContent();
       loadProducts(); // sub-tab Produk ikut dimuat bersama konten
       loadBundles();  // sub-tab Bundle ikut dimuat bersama konten
     if (viewState === 'dashboard' && currentTab === 'task') loadTasks();
@@ -1756,6 +1754,11 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
       // direct-open / refresh di URL tab (mis. /konten, /task) → hormati & pulihkan tabnya (R1: satu arbiter)
       const t = segToTab(window.location.pathname);
       if (t) { targetTab = t; path = TAB_PATHS[t]; }
+      else if (window.location.pathname === '/visualisasi') {
+        // legacy: Visualisasi kini sub-tab Konten — URL lama dialihkan (revisi Aldy)
+        targetTab = 'konten'; path = TAB_PATHS.konten;
+        setKontenSub('visualisasi');
+      }
     }
     if (window.location.pathname === path) {
       if (targetTab && currentTabRef.current !== targetTab) setCurrentTabState(targetTab);
@@ -1780,6 +1783,11 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
       if (t) {
         target = 'dashboard'; // slug tab → layar dashboard, tabnya dipulihkan di bawah
         if (currentTabRef.current !== t) setCurrentTabState(t);
+      } else if (p === '/visualisasi') {
+        // legacy /visualisasi → Konten + sub Visualisasi
+        target = 'dashboard';
+        if (currentTabRef.current !== 'konten') setCurrentTabState('konten');
+        setKontenSub('visualisasi');
       }
       viewStateRef.current = target;
       setViewState(target);
@@ -2863,7 +2871,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
             {/* Sub-bab Tab Konten (Artikel | Produk) — di header */}
             {currentTab === 'konten' && (
               <div className="hidden md:flex flex-1 items-center justify-center gap-1.5 min-w-0">
-                {(['artikel', 'produk', 'bundle'] as const).map((t) => (
+                {(['artikel', 'produk', 'bundle', 'visualisasi'] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setKontenSub(t)}
@@ -3207,7 +3215,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
       {/* Sub-bab Tab Konten — layar kecil */}
       {currentTab === 'konten' && (
         <div className="md:hidden sticky top-[6.3rem] z-30 bg-gray-50/95 backdrop-blur px-3 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-gray-200">
-          {(['artikel', 'produk', 'bundle'] as const).map((t) => (
+          {(['artikel', 'produk', 'bundle', 'visualisasi'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setKontenSub(t)}
@@ -3265,13 +3273,16 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
           )}
           {currentTab === 'konten' && (
             <div key="konten">
+              {kontenSub === 'visualisasi' ? (
+                <LazyVisualisasiTab loading={contentLoading} items={contentItems} prodItems={productItems} authHeaders={getAuthHeaders} />
+              ) : (
               <LazyKontenTab
                 loading={contentLoading}
                 items={contentItems}
                 onAdd={addContent}
                 onUpdate={updateContent}
                 onDelete={deleteContent}
-                sub={kontenSub}
+                sub={kontenSub === 'visualisasi' ? 'artikel' : kontenSub}
                 setSub={setKontenSub}
                 prodLoading={productLoading}
                 prodItems={productItems}
@@ -3284,11 +3295,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
                 onBundleUpdate={updateBundle}
                 onBundleDelete={deleteBundle}
               />
-            </div>
-          )}
-          {currentTab === 'visualisasi' && (
-            <div key="visualisasi">
-              <LazyVisualisasiTab loading={contentLoading} items={contentItems} prodItems={productItems} authHeaders={getAuthHeaders} />
+              )}
             </div>
           )}
           {currentTab === 'task' && (
@@ -3316,7 +3323,7 @@ const loadOverview = async (sd = startDate, ed = endDate) => {
               setViewState={setViewState}
             />
           )}
-          {['overview', 'insight', 'konten', 'task', 'cek', 'pengaturan', 'visualisasi'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
+          {['overview', 'insight', 'konten', 'task', 'cek', 'pengaturan'].includes(currentTab) ? null : currentTab === 'dashboard' ? (
           <LazyDashboardTab
             AUDIT_TABS={AUDIT_TABS}
             Ga4EventBreakdown={Ga4EventBreakdown}
