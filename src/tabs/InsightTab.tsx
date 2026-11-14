@@ -10,7 +10,7 @@ type Props = {
   /** link masuk dari situs luar (GA4 pageReferrer) — { items: [{referrer, page, sessions}] } */
   backlinks?: { items: { referrer: string; page: string; sessions: number }[] } | null;
   /** hasil ukur Lighthouse (cron harian) — { site, cwv: { measured_at, score, metrics, fixes } } */
-  cwv?: { site: string | null; cwv: any } | null;
+  cwv?: { site: string | null; cwv: any; needsMigration?: boolean } | null;
   error?: string | null;
   /** daftar keyword branded dari Pengaturan (Pengaturan Event) — dipakai tombol muat ulang */
   brandedKeywords?: string[];
@@ -280,9 +280,11 @@ export default function InsightTab({ loading, branded, users, backlinks, cwv, er
         {!cwv?.cwv ? (
           <div className="px-5 py-10 text-center text-sm text-gray-400">
             <Gauge className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-            {cwv?.site
-              ? <>Belum ada pengukuran — pengukuran harian berjalan otomatis, hasil muncul setelah run pertama.</>
-              : <>Data belum tersedia — pastikan project sudah connect &amp; migrasi SQL 0014 dijalankan.</>}
+            {cwv?.needsMigration
+              ? <>Belum ada data — jalankan migrasi <b>SQL 0014</b> di Supabase (SQL Editor) lalu muat ulang.</>
+              : cwv?.site
+                ? <>Belum ada pengukuran — pengukuran harian berjalan otomatis, hasil muncul setelah run pertama.</>
+                : <>Data belum tersedia — pastikan project sudah connect Search Console.</>}
           </div>
         ) : (
           <>

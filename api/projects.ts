@@ -600,8 +600,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq("site", host)
           .maybeSingle();
         if (error) {
-          if (String(error.message).includes("relation") || error.code === "42P01")
-            return res.status(500).json({ error: "Tabel site_cwv belum ada — jalankan migrasi SQL 0014 di Supabase" });
+          // tabel belum ada: Supabase balas PGRST205 ("...not in the schema cache")
+          // atau 42P01 — jangan bocorkan pesan mentah ke layar, tapi juga JANGAN
+          // jadi banner merah: cukup bilang belum ada data + minta migrasi di kartu.
+          const missing =
+            error.code === "PGRST205" || error.code === "42P01" ||
+            String(error.message).includes("site_cwv") ||
+            String(error.message).includes("schema cache") ||
+            String(error.message).includes("relation");
+          if (missing) return res.status(200).json({ site: host, cwv: null, needsMigration: true });
           return res.status(500).json({ error: error.message });
         }
         return res.status(200).json({ site: host, cwv: data || null });
